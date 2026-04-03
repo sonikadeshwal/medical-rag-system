@@ -34,6 +34,9 @@ st.markdown("""
 h1, h2, h3 { color: #f1f5f9 !important; }
 .stTextInput > div > div > input,
 .stTextArea > div > div > textarea,
+[data-baseweb="textarea"] textarea,
+[data-baseweb="base-input"] input,
+[data-baseweb="base-input"] textarea,
 textarea, input {
     background: rgba(255,255,255,0.06) !important;
     border: 1px solid rgba(255,255,255,0.12) !important;
@@ -46,13 +49,23 @@ textarea, input {
     transition: all 0.2s !important;
 }
 .stTextInput > div > div > input:focus,
-.stTextArea > div > div > textarea:focus {
+.stTextArea > div > div > textarea:focus,
+[data-baseweb="textarea"] textarea:focus,
+[data-baseweb="base-input"] input:focus,
+textarea:focus, input:focus {
     border-color: rgba(139,92,246,0.6) !important;
     box-shadow: 0 0 0 3px rgba(139,92,246,0.15) !important;
     background: rgba(255,255,255,0.09) !important;
+    color: #f1f5f9 !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
 }
 .stTextInput > div > div > input::placeholder,
-.stTextArea > div > div > textarea::placeholder { color: rgba(148,163,184,0.5) !important; }
+.stTextArea > div > div > textarea::placeholder,
+[data-baseweb="textarea"] textarea::placeholder,
+textarea::placeholder, input::placeholder { 
+    color: rgba(148,163,184,0.5) !important;
+    -webkit-text-fill-color: rgba(148,163,184,0.5) !important;
+}
 .stTextInput label, .stTextArea label {
     color: #64748b !important; font-size: 11px !important;
     text-transform: uppercase; letter-spacing: 0.06em;
