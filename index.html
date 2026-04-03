@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Medical AI Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #0a0f1e;
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: #f1f5f9;
+    }
+
+    /* ── Mesh background ── */
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%,  rgba(99,102,241,.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 20%,  rgba(20,184,166,.14) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 60% at 50% 90%,  rgba(139,92,246,.12) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 90% 70%,  rgba(59,130,246,.10) 0%, transparent 50%),
+        #0a0f1e;
+    }
+
+    /* floating orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: .11;
+      pointer-events: none;
+      animation: drift 12s ease-in-out infinite;
+    }
+    .orb-1 { width:380px; height:380px; background:#6366f1; top:-8%;  left:-4%; }
+    .orb-2 { width:300px; height:300px; background:#38bdf8; top:38%;  right:-6%; animation-delay:4s; }
+    .orb-3 { width:260px; height:260px; background:#34d399; bottom:4%; left:28%; animation-delay:7s; }
+    @keyframes drift {
+      0%,100% { transform:translate(0,0); }
+      33%      { transform:translate(28px,-18px); }
+      66%      { transform:translate(-18px,14px); }
+    }
+
+    /* ── Layout ── */
+    .page {
+      position: relative;
+      z-index: 10;
+      min-height: 100vh;
+      padding: 56px 16px 40px;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── Glass card ── */
+    .glass {
+      background: rgba(255,255,255,.055);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.07);
+    }
+    .glass-sm {
+      background: rgba(255,255,255,.035);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 20px;
+    }
+
+    /* ── Header ── */
+    .header { text-align: center; padding-bottom: 8px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(139,92,246,.18);
+      border: 1px solid rgba(139,92,246,.3);
+      color: #c4b5fd;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+    }
+    .pulse-dot {
+      width: 7px; height: 7px;
+      background: #34d399;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0   rgba(52,211,153,.55); }
+      70%  { box-shadow: 0 0 0 6px rgba(52,211,153,0); }
+      100% { box-shadow: 0 0 0 0   rgba(52,211,153,0); }
+    }
+
+    .grad-title {
+      font-family: 'DM Serif Display', serif;
+      font-weight: 400;
+      font-size: clamp(2rem, 5vw, 2.8rem);
+      line-height: 1.15;
+      background: linear-gradient(135deg, #a78bfa 0%, #38bdf8 52%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 460px;
+      margin: 0 auto;
+    }
+    .subtitle strong { color: #94a3b8; font-weight: 500; }
+
+    /* ── Stats row ── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .stat {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 18px;
+      padding: 18px 12px;
+      text-align: center;
+      transition: background .2s, border-color .2s;
+    }
+    .stat:hover {
+      background: rgba(255,255,255,.07);
+      border-color: rgba(255,255,255,.12);
+    }
+    .stat-value { font-size: 22px; font-weight: 300; color: #f1f5f9; }
+    .stat-label { font-size: 11px; color: #475569; margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
+
+    /* ── Search card ── */
+    .search-card { padding: 28px 32px; }
+    .search-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .icon-box {
+      width: 34px; height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(135deg,#6366f1,#8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .icon-box svg { width:16px; height:16px; color:#fff; stroke:#fff; }
+    .search-title { color: #f1f5f9; font-size: 15px; font-weight: 500; }
+
+    textarea {
+      width: 100%;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 16px;
+      color: #f1f5f9;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      line-height: 1.65;
+      padding: 14px 18px;
+      resize: none;
+      outline: none;
+      transition: background .2s, border-color .2s, box-shadow .2s;
+    }
+    textarea::placeholder { color: rgba(148,163,184,.5); }
+    textarea:focus {
+      background: rgba(255,255,255,.09);
+      border-color: rgba(139,92,246,.6);
+      box-shadow: 0 0 0 3px rgba(139,92,246,.15);
+    }
+
+    .btn-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg,#6366f1,#8b5cf6);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      padding: 11px 28px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: 0 4px 20px rgba(99,102,241,.42);
+      transition: box-shadow .2s, transform .15s;
+    }
+    .btn-primary:hover {
+      box-shadow: 0 6px 28px rgba(99,102,241,.62);
+      transform: translateY(-1px);
+    }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      background: rgba(255,255,255,.05);
+      color: #64748b;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 11px 20px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+      transition: color .2s, background .2s;
+    }
+    .btn-secondary:hover { color: #f1f5f9; background: rgba(255,255,255,.09); }
+
+    .btn-hint { color: #334155; font-size: 12px; margin-left: auto; }
+
+    /* ── Loading ── */
+    .loading-card {
+      padding: 22px 28px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .dots { display:flex; gap:6px; }
+    .dot {
+      width:8px; height:8px;
+      border-radius:50%;
+      animation: bounce .9s ease-in-out infinite;
+    }
+    .dot-1 { background:#818cf8; animation-delay:0s; }
+    .dot-2 { background:#38bdf8; animation-delay:.15s; }
+    .dot-3 { background:#34d399; animation-delay:.30s; }
+    @keyframes bounce {
+      0%,80%,100% { transform: translateY(0); }
+      40%          { transform: translateY(-7px); }
+    }
+    .loading-text { color: #64748b; font-size: 14px; }
+
+    /* ── Answer card ── */
+    .answer-card {
+      background: rgba(20,184,166,.07);
+      border: 1px solid rgba(20,184,166,.22);
+      border-radius: 24px;
+      box-shadow: 0 0 40px rgba(20,184,166,.06);
+      padding: 26px 30px;
+    }
+    .answer-label {
+      color: #34d399;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .answer-text { color: #e2e8f0; font-size: 15px; line-height: 1.8; }
+
+    /* ── Context card ── */
+    .context-wrap { padding: 24px 28px; }
+    .context-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .context-header-label { color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+    .top3-badge {
+      background: rgba(139,92,246,.18);
+      border: 1px solid rgba(139,92,246,.28);
+      color: #c4b5fd;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+    .ctx-item {
+      background: rgba(99,102,241,.07);
+      border: 1px solid rgba(99,102,241,.18);
+      border-left: 3px solid rgba(139,92,246,.65);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 10px;
+      transition: background .2s;
+    }
+    .ctx-item:last-child { margin-bottom: 0; }
+    .ctx-item:hover { background: rgba(99,102,241,.12); }
+    .ctx-match-label {
+      color: #a78bfa;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 7px;
+    }
+    .ctx-text { color: #94a3b8; font-size: 13px; line-height: 1.7; }
+
+    /* ── Suggestions ── */
+    .suggest-card { padding: 20px 24px; }
+    .suggest-label { color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      color: #64748b;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 10px;
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: color .2s, background .2s, border-color .2s;
+    }
+    .chip:hover {
+      color: #f1f5f9;
+      background: rgba(139,92,246,.12);
+      border-color: rgba(139,92,246,.35);
+    }
+
+    /* ── Footer ── */
+    .footer { text-align: center; color: #1e293b; font-size: 11px; padding-top: 4px; }
+
+    /* ── Fade in ── */
+    .fade-in { animation: fadeIn .45s ease forwards; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+    /* ── Responsive ── */
+    @media (max-width: 560px) {
+      .page { padding: 36px 12px 32px; }
+      .search-card, .context-wrap { padding: 20px 18px; }
+      .stats { grid-template-columns: repeat(3,1fr); gap: 8px; }
+      .stat { padding: 14px 8px; }
+      .stat-value { font-size: 18px; }
+      .btn-hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="bg-mesh"></div>
+
+  <div class="page">
+    <div class="container">
+
+      <!-- Header -->
+      <div class="header">
+        <div class="badge"><span class="pulse-dot"></span> System Ready</div>
+        <h1 class="grad-title">Medical AI Assistant</h1>
+        <p class="subtitle">Grounded answers from <strong>500 PubMed QA</strong> records via FAISS vector search and FLAN-T5.</p>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat"><div class="stat-value">500</div><div class="stat-label">PubMed Records</div></div>
+        <div class="stat"><div class="stat-value">384</div><div class="stat-label">Embedding Dims</div></div>
+        <div class="stat"><div class="stat-value">Top-3</div><div class="stat-label">Context Matches</div></div>
+      </div>
+
+      <!-- Search card -->
+      <div class="glass search-card">
+        <div class="search-header">
+          <div class="icon-box">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <span class="search-title">Ask a Medical Question</span>
+        </div>
+
+        <textarea id="query" rows="3" placeholder="e.g. What are the symptoms of Type 2 diabetes?  What causes hypertension?"></textarea>
+
+        <div class="btn-row">
+          <button class="btn-primary" onclick="handleAsk()">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Search
+          </button>
+          <button class="btn-secondary" onclick="clearAll()">Clear</button>
+          <span class="btn-hint">Powered by FLAN-T5 · MiniLM</span>
+        </div>
+      </div>
+
+      <!-- Answer section -->
+      <div id="answerSection" style="display:none;" class="fade-in">
+        <div id="loadingCard" class="glass loading-card">
+          <div class="dots">
+            <div class="dot dot-1"></div>
+            <div class="dot dot-2"></div>
+            <div class="dot dot-3"></div>
+          </div>
+          <span class="loading-text">Retrieving context and generating answer…</span>
+        </div>
+
+        <div id="resultWrap" style="display:none; display:flex; flex-direction:column; gap:14px;">
+          <div class="answer-card">
+            <div class="answer-label">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#34d399" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              AI Answer
+            </div>
+            <p id="answerText" class="answer-text"></p>
+          </div>
+
+          <div class="glass context-wrap">
+            <div class="context-header">
+              <span class="context-header-label">Retrieved Context</span>
+              <span class="top3-badge">Top 3 Matches</span>
+            </div>
+            <div id="contextList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Suggestions -->
+      <div class="glass-sm suggest-card">
+        <div class="suggest-label">Try asking</div>
+        <div class="chips">
+          <button class="chip" onclick="fill(this)">What is diabetes?</button>
+          <button class="chip" onclick="fill(this)">Causes of hypertension?</button>
+          <button class="chip" onclick="fill(this)">How does chemotherapy work?</button>
+          <button class="chip" onclick="fill(this)">What causes Alzheimer's disease?</button>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <p class="footer">⚠️ For informational purposes only — not a substitute for professional medical advice.</p>
+
+    </div>
+  </div>
+
+  <script>
+    const demo = {
+      "what is diabetes": "Diabetes mellitus is a metabolic disorder characterised by chronic hyperglycemia resulting from defects in insulin secretion, insulin action, or both. Type 1 involves autoimmune destruction of pancreatic beta cells, while Type 2 is associated with insulin resistance and progressive decline in beta-cell function.",
+      "causes of hypertension": "Primary (essential) hypertension accounts for 90–95% of cases and results from complex interactions between genetic predisposition, high sodium intake, obesity, sedentary lifestyle, and chronic stress. Secondary hypertension arises from identifiable conditions such as renal artery stenosis or primary aldosteronism.",
+      "how does chemotherapy work": "Chemotherapy agents target rapidly dividing cells by interfering with DNA replication or cell division. Alkylating agents cross-link DNA strands; antimetabolites mimic nucleotides to disrupt synthesis; topoisomerase inhibitors prevent DNA unwinding — ultimately triggering apoptosis in malignant cells.",
+      "what causes alzheimer's disease": "Alzheimer's disease is characterised by extracellular amyloid-beta plaques and intraneuronal neurofibrillary tau tangles. These aggregates impair synaptic transmission and trigger neuroinflammatory cascades, leading to progressive neurodegeneration primarily in the hippocampus and cerebral cortex.",
+    };
+    const ctxItems = [
+      "Insulin resistance occurs when cells fail to respond adequately to insulin signalling, leading to compensatory hyperinsulinemia and eventually beta-cell exhaustion.",
+      "Pancreatic beta cells are responsible for glucose-stimulated insulin secretion and play a central role in maintaining glycaemic homeostasis throughout the lifespan.",
+      "Chronic hyperglycemia activates multiple pathological pathways including advanced glycation end-products, oxidative stress, and inflammatory cytokines that drive end-organ damage."
+    ];
+
+    function fill(btn) { document.getElementById('query').value = btn.textContent.trim(); }
+
+    function clearAll() {
+      document.getElementById('query').value = '';
+      document.getElementById('answerSection').style.display = 'none';
+    }
+
+    function handleAsk() {
+      const q = document.getElementById('query').value.trim();
+      if (!q) return;
+      const section  = document.getElementById('answerSection');
+      const loading  = document.getElementById('loadingCard');
+      const result   = document.getElementById('resultWrap');
+
+      section.style.display = 'block';
+      loading.style.display = 'flex';
+      result.style.display  = 'none';
+
+      setTimeout(() => {
+        loading.style.display = 'none';
+        result.style.display  = 'flex';
+
+        const key    = q.toLowerCase().replace(/[?!.]/g,'').trim();
+        const answer = demo[key] || "Based on the retrieved PubMed context, the condition involves complex molecular and physiological mechanisms with interactions between genetic predisposition and environmental factors playing a central role in pathogenesis.";
+
+        document.getElementById('answerText').textContent = answer;
+
+        const list = document.getElementById('contextList');
+        list.innerHTML = ctxItems.map((c,i) => `
+          <div class="ctx-item">
+            <div class="ctx-match-label">Match ${i+1} · PubMed QA</div>
+            <div class="ctx-text">${c}</div>
+          </div>`).join('');
+      }, 1800);
+    }
+
+    document.getElementById('query').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk(); }
+    });
+  </script>
+</body>
+</html>
