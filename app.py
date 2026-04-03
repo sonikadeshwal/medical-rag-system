@@ -33,11 +33,14 @@ st.markdown("""
 .stMarkdown p, .stMarkdown li { color: #94a3b8 !important; }
 h1, h2, h3 { color: #f1f5f9 !important; }
 .stTextInput > div > div > input,
-.stTextArea > div > div > textarea {
+.stTextArea > div > div > textarea,
+textarea, input {
     background: rgba(255,255,255,0.06) !important;
     border: 1px solid rgba(255,255,255,0.12) !important;
     border-radius: 16px !important;
     color: #f1f5f9 !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    caret-color: #a78bfa !important;
     padding: 14px 18px !important;
     font-size: 14px !important;
     transition: all 0.2s !important;
