@@ -4,7 +4,8 @@ import pickle
 import numpy as np
 import os
 from sentence_transformers import SentenceTransformer
-from transformers import pipeline
+import torch
+from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 from datasets import load_dataset
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -207,14 +208,15 @@ def load_system():
         with open(ANSWERS_PATH, "rb") as f:
             answers = pickle.load(f)
 
-    # Extractive QA pipeline — reads context, extracts exact answer span
-    qa = pipeline("question-answering", model=QA_MODEL)
-    return embed_model, index, answers, qa
+    # Load extractive QA model directly — bypasses broken pipeline task registry
+    qa_tokenizer = AutoTokenizer.from_pretrained(QA_MODEL)
+    qa_model     = AutoModelForQuestionAnswering.from_pretrained(QA_MODEL)
+    return embed_model, index, answers, qa_tokenizer, qa_model
 
 
 with st.spinner("Loading AI system…"):
     try:
-        embed_model, index, answers, qa = load_system()
+        embed_model, index, answers, qa_tokenizer, qa_model = load_system()
         loaded = True
     except Exception as e:
         st.error(f"❌ Failed to load: {e}")
@@ -232,18 +234,36 @@ def retrieve(query, k=5):
 
 def answer_question(query, retrieved_chunks):
     """
-    Run extractive QA over the combined retrieved context.
-    RoBERTa reads the context and extracts the exact answer span.
-    Returns (answer_text, confidence_score, context_used).
+    Extractive QA using AutoModelForQuestionAnswering directly.
+    RoBERTa reads context and extracts the exact answer span — no hallucination.
+    Returns (answer_text, confidence_score, combined_context).
     """
     combined_context = " ".join(retrieved_chunks)
 
-    result = qa({
-        "question": query,
-        "context":  combined_context
-    })
+    inputs = qa_tokenizer(
+        query,
+        combined_context,
+        return_tensors="pt",
+        truncation=True,
+        max_length=512
+    )
 
-    return result["answer"], result["score"], combined_context
+    with torch.no_grad():
+        outputs = qa_model(**inputs)
+
+    start = torch.argmax(outputs.start_logits)
+    end   = torch.argmax(outputs.end_logits) + 1
+
+    answer = qa_tokenizer.convert_tokens_to_string(
+        qa_tokenizer.convert_ids_to_tokens(inputs["input_ids"][0][start:end])
+    )
+
+    # Confidence = average of softmax-normalised start & end scores
+    start_score = torch.softmax(outputs.start_logits, dim=1)[0][start].item()
+    end_score   = torch.softmax(outputs.end_logits,   dim=1)[0][end-1].item()
+    score = (start_score + end_score) / 2
+
+    return answer, score, combined_context
 
 
 # ── Query UI ───────────────────────────────────────────────────────────────────
