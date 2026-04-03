@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 import os
 from sentence_transformers import SentenceTransformer
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 # ─── Page Config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -94,12 +94,13 @@ def load_system():
             with open(ANSWERS_PATH, "rb") as f:
                 answers = pickle.load(f)
 
-        llm = pipeline("text2text-generation", model=LLM_MODEL_NAME)
-        return embed_model, index, answers, llm
+        tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
+        llm_model = AutoModelForSeq2SeqLM.from_pretrained(LLM_MODEL_NAME)
+        return embed_model, index, answers, tokenizer, llm_model
 
     except Exception as e:
         st.error(f"❌ Error loading system: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
 
 # ─── Retrieve Top-K Answers ────────────────────────────────────────────────────
@@ -111,7 +112,7 @@ def retrieve(query, embed_model, index, answers, k=3):
 
 # ─── Main App ──────────────────────────────────────────────────────────────────
 with st.spinner("🔄 Loading AI system... (may take a moment on first run)"):
-    embed_model, index, answers, llm = load_system()
+    embed_model, index, answers, tokenizer, llm_model = load_system()
 
 if embed_model is not None:
     st.success("✅ System ready! Ask any medical question below.")
@@ -144,10 +145,12 @@ Question: {query}
 
 Answer:"""
 
-                result = llm(prompt, max_new_tokens=200, do_sample=False)
+                inputs = tokenizer(prompt, return_tensors="pt", max_length=512, truncation=True)
+                outputs = llm_model.generate(**inputs, max_new_tokens=200)
+                answer_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
             st.subheader("🤖 Answer")
-            st.info(result[0]['generated_text'])
+            st.info(answer_text)
 
             with st.expander("📚 Retrieved Context (from PubMed QA)"):
                 for i, r in enumerate(retrieved, 1):
