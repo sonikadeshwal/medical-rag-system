@@ -645,38 +645,40 @@ if search:
 
         if sc < CONF_THRESH or len(ans.strip()) < 3:
             st.markdown("""
-            <div class="no-ans">
-              <div class="no-ans-text">
+            <div style="background:#fff5f5;border:1.5px solid #fecdd3;border-radius:16px;padding:20px 24px;">
+              <p style="color:#e11d48 !important;-webkit-text-fill-color:#e11d48 !important;font-size:14px;line-height:1.7;margin:0;">
                 🔍 No confident answer found in the PubMed knowledge base for this question.
                 Try rephrasing, or this topic may not be covered in the 500 sample records.
-              </div>
+              </p>
             </div>""", unsafe_allow_html=True)
         else:
             st.markdown(f"""
-            <div class="answer-card">
-              <div class="answer-tag">Extracted Answer</div>
-              <div class="answer-text">{ans}</div>
-              <div class="conf-row">
-                <span class="conf-label">Confidence</span>
+            <div style="background:linear-gradient(135deg,#f0f4ff 0%,#f0fdfb 100%);border:1.5px solid #ddd6fe;border-radius:20px;padding:28px;margin-bottom:20px;animation:cardIn 0.5s cubic-bezier(0.22,1,0.36,1) both;">
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#6c63ff !important;-webkit-text-fill-color:#6c63ff !important;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+                <span style="width:20px;height:2px;background:#6c63ff;border-radius:2px;display:inline-block;"></span>
+                Extracted Answer
+              </div>
+              <p style="font-size:16px !important;line-height:1.8 !important;color:#1a1a2e !important;-webkit-text-fill-color:#1a1a2e !important;font-weight:400;margin:0 0 18px 0;">{ans}</p>
+              <div style="display:flex;align-items:center;gap:12px;padding-top:18px;border-top:1px solid rgba(108,99,255,0.15);">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa !important;-webkit-text-fill-color:#aaa !important;white-space:nowrap;">Confidence</span>
                 <div class="conf-track">
-                  <div class="conf-fill" style="width:{pct}%"></div>
-                </div>
-                <span class="conf-pct">{pct}%</span>
+                  <div style="flex:1;height:6px;background:#e8e8f0;border-radius:99px;overflow:hidden;">
+                    <div style="width:{pct}%;height:100%;border-radius:99px;background:linear-gradient(90deg,#6c63ff,#48cfad);transition:width 1s cubic-bezier(0.22,1,0.36,1);"></div>
+                  </div>
+                <span style="font-size:13px;font-weight:700;color:#6c63ff !important;-webkit-text-fill-color:#6c63ff !important;min-width:40px;text-align:right;">{pct}%</span>
               </div>
             </div>""", unsafe_allow_html=True)
 
         with st.expander("📄 View Retrieved Context — Top 5 PubMed Matches"):
-            st.markdown('<div class="ctx-wrap">', unsafe_allow_html=True)
             for i, c in enumerate(chunks, 1):
                 st.markdown(f"""
-                <div class="ctx-item">
-                  <div class="ctx-num">Match {i} · PubMed QA</div>
-                  <div class="ctx-text">{c}</div>
+                <div style="background:#fff;border:1.5px solid #e8e8f0;border-left:4px solid #6c63ff;border-radius:14px;padding:16px 20px;margin-bottom:12px;">
+                  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#6c63ff !important;-webkit-text-fill-color:#6c63ff !important;margin-bottom:8px;">Match {i} · PubMed QA</div>
+                  <div style="font-size:13px;line-height:1.7;color:#555 !important;-webkit-text-fill-color:#555 !important;">{c}</div>
                 </div>""", unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("""
-<div class="footer">
+<div style="text-align:center;color:#ccc;font-size:12px;margin-top:40px;font-family:'Nunito',sans-serif;">
   ⚠️ For educational purposes only — not a substitute for professional medical advice.<br>
   Built with FAISS · RoBERTa · Sentence Transformers · Streamlit
 </div>
