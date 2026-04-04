@@ -40,33 +40,35 @@ h1, h2, h3 { color: #f1f5f9 !important; }
 [data-baseweb="base-input"] input,
 [data-baseweb="base-input"] textarea,
 textarea, input {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px solid rgba(255,255,255,0.12) !important;
+    background: #0f1729 !important;
+    background-color: #0f1729 !important;
+    border: 1px solid rgba(139,92,246,0.35) !important;
     border-radius: 16px !important;
     color: #f1f5f9 !important;
     -webkit-text-fill-color: #f1f5f9 !important;
     caret-color: #a78bfa !important;
     padding: 14px 18px !important;
     font-size: 14px !important;
-    transition: all 0.2s !important;
+    transition: border-color 0.2s !important;
 }
 .stTextInput > div > div > input:focus,
 .stTextArea > div > div > textarea:focus,
 [data-baseweb="textarea"] textarea:focus,
 [data-baseweb="base-input"] input:focus,
 textarea:focus, input:focus {
-    border-color: rgba(139,92,246,0.6) !important;
-    box-shadow: 0 0 0 3px rgba(139,92,246,0.15) !important;
-    background: rgba(255,255,255,0.09) !important;
+    border-color: rgba(139,92,246,0.8) !important;
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.2) !important;
+    background: #111a2e !important;
+    background-color: #111a2e !important;
     color: #f1f5f9 !important;
     -webkit-text-fill-color: #f1f5f9 !important;
 }
 .stTextInput > div > div > input::placeholder,
 .stTextArea > div > div > textarea::placeholder,
 [data-baseweb="textarea"] textarea::placeholder,
-textarea::placeholder, input::placeholder { 
-    color: rgba(148,163,184,0.5) !important;
-    -webkit-text-fill-color: rgba(148,163,184,0.5) !important;
+textarea::placeholder, input::placeholder {
+    color: #475569 !important;
+    -webkit-text-fill-color: #475569 !important;
 }
 .stTextInput label, .stTextArea label {
     color: #64748b !important; font-size: 11px !important;
@@ -185,17 +187,18 @@ st.markdown("""
     function fixInputs() {
         var els = document.querySelectorAll('textarea, input[type="text"], input:not([type])');
         els.forEach(function(el) {
-            el.style.setProperty('color',                    '#f1f5f9',                   'important');
-            el.style.setProperty('-webkit-text-fill-color',  '#f1f5f9',                   'important');
-            el.style.setProperty('caret-color',              '#a78bfa',                   'important');
-            el.style.setProperty('background',               'rgba(255,255,255,0.06)',     'important');
-            el.style.setProperty('border',                   '1px solid rgba(255,255,255,0.14)', 'important');
-            el.style.setProperty('border-radius',            '16px',                      'important');
-            el.style.setProperty('font-size',                '14px',                      'important');
-            el.style.setProperty('font-family',              'DM Sans, sans-serif',       'important');
+            el.style.setProperty('color',                    '#f1f5f9',                        'important');
+            el.style.setProperty('-webkit-text-fill-color',  '#f1f5f9',                        'important');
+            el.style.setProperty('caret-color',              '#a78bfa',                        'important');
+            el.style.setProperty('background',               '#0f1729',                        'important');
+            el.style.setProperty('background-color',         '#0f1729',                        'important');
+            el.style.setProperty('border',                   '1px solid rgba(139,92,246,0.35)','important');
+            el.style.setProperty('border-radius',            '16px',                           'important');
+            el.style.setProperty('font-size',                '14px',                           'important');
+            el.style.setProperty('font-family',              'DM Sans, sans-serif',            'important');
+            el.style.setProperty('padding',                  '14px 18px',                      'important');
         });
     }
-    /* run immediately + watch for Streamlit re-renders */
     fixInputs();
     var observer = new MutationObserver(fixInputs);
     observer.observe(document.body, { childList: true, subtree: true });
