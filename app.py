@@ -93,16 +93,24 @@ textarea::placeholder, input::placeholder {
     color: #94a3b8 !important;
 }
 .stSpinner > div { border-top-color: #8b5cf6 !important; }
-.streamlit-expanderHeader {
-    background: rgba(255,255,255,0.04) !important;
+.streamlit-expanderHeader, [data-testid="stExpander"] summary,
+[data-testid="stExpanderToggleIcon"], details summary {
+    background: #0f1729 !important;
+    background-color: #0f1729 !important;
     border-radius: 14px !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    color: #94a3b8 !important; font-size: 13px !important;
+    border: 1px solid rgba(139,92,246,0.25) !important;
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: #94a3b8 !important;
+    font-size: 13px !important;
 }
-.streamlit-expanderContent {
-    background: rgba(255,255,255,0.02) !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
-    border-radius: 0 0 14px 14px !important; padding: 16px !important;
+.streamlit-expanderContent, [data-testid="stExpander"] > div,
+details > div {
+    background: #0b1220 !important;
+    background-color: #0b1220 !important;
+    border: 1px solid rgba(139,92,246,0.15) !important;
+    border-top: none !important;
+    border-radius: 0 0 14px 14px !important;
+    padding: 16px !important;
 }
 hr { border-color: rgba(255,255,255,0.07) !important; }
 [data-testid="metric-container"] {
@@ -118,10 +126,12 @@ hr { border-color: rgba(255,255,255,0.07) !important; }
     color: #f1f5f9 !important; font-size: 24px !important; font-weight: 300 !important;
 }
 .answer-box {
-    background: rgba(20,184,166,0.07);
-    border: 1px solid rgba(20,184,166,0.22);
+    background: #0d1f1e;
+    border: 1px solid rgba(20,184,166,0.35);
     border-radius: 20px; padding: 24px 28px;
-    color: #e2e8f0; font-size: 15px; line-height: 1.8; margin: 8px 0 16px;
+    color: #e2e8f0 !important;
+    -webkit-text-fill-color: #e2e8f0 !important;
+    font-size: 15px; line-height: 1.8; margin: 8px 0 16px;
 }
 .confidence-bar-wrap {
     margin-top: 12px;
@@ -185,18 +195,38 @@ st.markdown("""
 <script>
 (function() {
     function fixInputs() {
-        var els = document.querySelectorAll('textarea, input[type="text"], input:not([type])');
-        els.forEach(function(el) {
-            el.style.setProperty('color',                    '#f1f5f9',                        'important');
-            el.style.setProperty('-webkit-text-fill-color',  '#f1f5f9',                        'important');
-            el.style.setProperty('caret-color',              '#a78bfa',                        'important');
-            el.style.setProperty('background',               '#0f1729',                        'important');
-            el.style.setProperty('background-color',         '#0f1729',                        'important');
-            el.style.setProperty('border',                   '1px solid rgba(139,92,246,0.35)','important');
-            el.style.setProperty('border-radius',            '16px',                           'important');
-            el.style.setProperty('font-size',                '14px',                           'important');
-            el.style.setProperty('font-family',              'DM Sans, sans-serif',            'important');
-            el.style.setProperty('padding',                  '14px 18px',                      'important');
+        /* ── textarea / input ── */
+        document.querySelectorAll('textarea, input[type="text"], input:not([type])').forEach(function(el) {
+            el.style.setProperty('color',                    '#f1f5f9',                         'important');
+            el.style.setProperty('-webkit-text-fill-color',  '#f1f5f9',                         'important');
+            el.style.setProperty('caret-color',              '#a78bfa',                         'important');
+            el.style.setProperty('background',               '#0f1729',                         'important');
+            el.style.setProperty('background-color',         '#0f1729',                         'important');
+            el.style.setProperty('border',                   '1px solid rgba(139,92,246,0.35)', 'important');
+            el.style.setProperty('border-radius',            '16px',                            'important');
+            el.style.setProperty('font-size',                '14px',                            'important');
+            el.style.setProperty('font-family',              'DM Sans, sans-serif',             'important');
+            el.style.setProperty('padding',                  '14px 18px',                       'important');
+        });
+
+        /* ── expander header & content ── */
+        document.querySelectorAll('details, details summary, [data-testid="stExpander"], [data-testid="stExpander"] summary').forEach(function(el) {
+            el.style.setProperty('background',       '#0f1729', 'important');
+            el.style.setProperty('background-color', '#0f1729', 'important');
+            el.style.setProperty('color',            '#94a3b8', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#94a3b8', 'important');
+        });
+
+        /* ── answer box text ── */
+        document.querySelectorAll('.answer-box, .answer-box *').forEach(function(el) {
+            el.style.setProperty('color',                   '#e2e8f0', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#e2e8f0', 'important');
+        });
+
+        /* ── ctx card text ── */
+        document.querySelectorAll('.ctx-card, .ctx-text').forEach(function(el) {
+            el.style.setProperty('color',                   '#94a3b8', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#94a3b8', 'important');
         });
     }
     fixInputs();
