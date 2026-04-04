@@ -3,412 +3,681 @@ import faiss
 import pickle
 import numpy as np
 import os
-from sentence_transformers import SentenceTransformer
 import torch
+from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 from datasets import load_dataset
 
-# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Medical AI Assistant",
+    page_title="MedQuery AI",
     page_icon="🩺",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# ── Custom CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
-body, p, span, div, button, label, h1, h2, h3, h4, h5, h6 {
-    font-family: 'DM Sans', sans-serif !important;
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Nunito:wght@300;400;500;600&display=swap');
+
+/* ── Reset Streamlit chrome ── */
+#MainMenu, footer, header, .stDeployButton, [data-testid="stToolbar"] { display: none !important; }
+.block-container { padding: 0 !important; max-width: 100% !important; }
+section[data-testid="stSidebar"] { display: none !important; }
+
+/* ── Force white background everywhere ── */
+html, body, .stApp, .main, [data-testid="stAppViewContainer"],
+[data-testid="stMain"], [data-testid="stVerticalBlock"] {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    font-family: 'Nunito', sans-serif !important;
 }
-.stApp {
-    background:
-        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 80% 20%, rgba(20,184,166,0.14) 0%, transparent 55%),
-        radial-gradient(ellipse 70% 60% at 50% 90%, rgba(139,92,246,0.12) 0%, transparent 60%),
-        #0a0f1e !important;
+
+/* ── All text defaults ── */
+p, span, div, li, label {
+    font-family: 'Nunito', sans-serif !important;
+    color: #1a1a2e !important;
 }
-#MainMenu, footer, header, .stDeployButton { display: none !important; }
-.block-container { padding: 2.5rem 1.5rem !important; max-width: 760px !important; }
-.stMarkdown p, .stMarkdown li { color: #94a3b8 !important; }
-h1, h2, h3 { color: #f1f5f9 !important; }
-.stTextInput > div > div > input,
-.stTextArea > div > div > textarea,
-[data-baseweb="textarea"] textarea,
-[data-baseweb="base-input"] input,
-[data-baseweb="base-input"] textarea,
+
+/* ── Inputs: force visible text ── */
 textarea, input {
-    background: #0f1729 !important;
-    background-color: #0f1729 !important;
-    border: 1px solid rgba(139,92,246,0.35) !important;
-    border-radius: 16px !important;
-    color: #f1f5f9 !important;
-    -webkit-text-fill-color: #f1f5f9 !important;
-    caret-color: #a78bfa !important;
+    font-family: 'Nunito', sans-serif !important;
+    font-size: 15px !important;
+    color: #1a1a2e !important;
+    -webkit-text-fill-color: #1a1a2e !important;
+    background-color: #f8f9ff !important;
+    background: #f8f9ff !important;
+    border: 2px solid #e8e8f0 !important;
+    border-radius: 14px !important;
     padding: 14px 18px !important;
-    font-size: 14px !important;
-    transition: border-color 0.2s !important;
+    caret-color: #6c63ff !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    box-shadow: none !important;
 }
-.stTextInput > div > div > input:focus,
-.stTextArea > div > div > textarea:focus,
-[data-baseweb="textarea"] textarea:focus,
-[data-baseweb="base-input"] input:focus,
 textarea:focus, input:focus {
-    border-color: rgba(139,92,246,0.8) !important;
-    box-shadow: 0 0 0 3px rgba(139,92,246,0.2) !important;
-    background: #111a2e !important;
-    background-color: #111a2e !important;
-    color: #f1f5f9 !important;
-    -webkit-text-fill-color: #f1f5f9 !important;
+    border-color: #6c63ff !important;
+    box-shadow: 0 0 0 4px rgba(108,99,255,0.10) !important;
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #1a1a2e !important;
+    -webkit-text-fill-color: #1a1a2e !important;
+    outline: none !important;
 }
-.stTextInput > div > div > input::placeholder,
-.stTextArea > div > div > textarea::placeholder,
-[data-baseweb="textarea"] textarea::placeholder,
 textarea::placeholder, input::placeholder {
-    color: #475569 !important;
-    -webkit-text-fill-color: #475569 !important;
+    color: #aaa !important;
+    -webkit-text-fill-color: #aaa !important;
 }
-.stTextInput label, .stTextArea label {
-    color: #64748b !important; font-size: 11px !important;
-    text-transform: uppercase; letter-spacing: 0.06em;
+
+/* ── Streamlit label ── */
+label, [data-testid="stWidgetLabel"] p {
+    display: none !important;
 }
+
+/* ── Button ── */
 .stButton > button {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
-    color: white !important; border: none !important;
-    border-radius: 14px !important; padding: 10px 28px !important;
-    font-size: 14px !important; font-weight: 500 !important;
-    box-shadow: 0 4px 20px rgba(99,102,241,0.4) !important;
-    transition: all 0.2s !important;
+    background: linear-gradient(135deg, #6c63ff 0%, #48cfad 100%) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+    border: none !important;
+    border-radius: 50px !important;
+    padding: 12px 36px !important;
+    font-family: 'Nunito', sans-serif !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.3px !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 20px rgba(108,99,255,0.30) !important;
+    transition: all 0.25s ease !important;
+    width: 100% !important;
 }
 .stButton > button:hover {
-    box-shadow: 0 6px 28px rgba(99,102,241,0.6) !important;
-    transform: translateY(-1px) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 28px rgba(108,99,255,0.40) !important;
 }
-.stAlert {
-    background: rgba(255,255,255,0.04) !important;
-    border-radius: 16px !important;
-    border: 1px solid rgba(255,255,255,0.09) !important;
-    color: #94a3b8 !important;
+.stButton > button:active {
+    transform: translateY(0) !important;
 }
-.stSpinner > div { border-top-color: #8b5cf6 !important; }
-.streamlit-expanderHeader, [data-testid="stExpander"] summary,
-[data-testid="stExpanderToggleIcon"], details summary {
-    background: #0f1729 !important;
-    background-color: #0f1729 !important;
+
+/* ── Spinner ── */
+.stSpinner > div { border-top-color: #6c63ff !important; }
+
+/* ── Expander ── */
+[data-testid="stExpander"], details {
+    background: #f8f9ff !important;
+    background-color: #f8f9ff !important;
+    border: 1.5px solid #e8e8f0 !important;
     border-radius: 14px !important;
-    border: 1px solid rgba(139,92,246,0.25) !important;
-    color: #94a3b8 !important;
-    -webkit-text-fill-color: #94a3b8 !important;
-    font-size: 13px !important;
+    overflow: hidden !important;
 }
-.streamlit-expanderContent, [data-testid="stExpander"] > div,
-details > div {
-    background: #0b1220 !important;
-    background-color: #0b1220 !important;
-    border: 1px solid rgba(139,92,246,0.15) !important;
-    border-top: none !important;
-    border-radius: 0 0 14px 14px !important;
+details summary, [data-testid="stExpander"] summary {
+    background: #f8f9ff !important;
+    background-color: #f8f9ff !important;
+    color: #6c63ff !important;
+    -webkit-text-fill-color: #6c63ff !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    padding: 14px 18px !important;
+}
+details > div, [data-testid="stExpander"] > div {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
     padding: 16px !important;
 }
-hr { border-color: rgba(255,255,255,0.07) !important; }
-[data-testid="metric-container"] {
-    background: rgba(255,255,255,0.04) !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 16px !important; padding: 16px !important;
+
+/* ── Alert ── */
+.stAlert {
+    border-radius: 14px !important;
+    font-family: 'Nunito', sans-serif !important;
 }
-[data-testid="stMetricLabel"] {
-    color: #64748b !important; font-size: 11px !important;
-    text-transform: uppercase; letter-spacing: 0.06em;
+
+/* ── Metric cards ── */
+[data-testid="metric-container"] {
+    background: #f8f9ff !important;
+    border: 1.5px solid #e8e8f0 !important;
+    border-radius: 16px !important;
+    padding: 20px !important;
+    text-align: center !important;
 }
 [data-testid="stMetricValue"] {
-    color: #f1f5f9 !important; font-size: 24px !important; font-weight: 300 !important;
+    color: #6c63ff !important;
+    -webkit-text-fill-color: #6c63ff !important;
+    font-size: 26px !important;
+    font-weight: 600 !important;
+    font-family: 'Playfair Display', serif !important;
 }
-.answer-box {
-    background: #0d1f1e;
-    border: 1px solid rgba(20,184,166,0.35);
-    border-radius: 20px; padding: 24px 28px;
-    color: #e2e8f0 !important;
-    -webkit-text-fill-color: #e2e8f0 !important;
-    font-size: 15px; line-height: 1.8; margin: 8px 0 16px;
+[data-testid="stMetricLabel"] p {
+    display: block !important;
+    color: #888 !important;
+    -webkit-text-fill-color: #888 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
 }
-.confidence-bar-wrap {
-    margin-top: 12px;
-    display: flex; align-items: center; gap: 10px;
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #d0d0e8; border-radius: 99px; }
+</style>
+
+<style>
+/* ── Animated page wrapper ── */
+.page-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 24px 60px;
+    animation: pageIn 0.6s cubic-bezier(0.22,1,0.36,1) both;
 }
-.confidence-label { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing:.05em; }
-.confidence-bar-bg {
-    flex: 1; height: 5px;
-    background: rgba(255,255,255,0.07);
-    border-radius: 999px; overflow: hidden;
+@keyframes pageIn {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: none; }
 }
-.confidence-bar-fill {
-    height: 100%; border-radius: 999px;
-    background: linear-gradient(90deg, #6366f1, #34d399);
-    transition: width 0.6s ease;
+
+/* ── Header ── */
+.hero {
+    text-align: center;
+    margin-bottom: 40px;
 }
-.confidence-pct { color: #34d399; font-size: 12px; font-weight: 500; min-width: 38px; text-align:right; }
-.ctx-card {
-    background: rgba(99,102,241,0.07);
-    border: 1px solid rgba(99,102,241,0.18);
-    border-left: 3px solid rgba(139,92,246,0.65);
-    border-radius: 14px; padding: 16px 20px;
-    color: #94a3b8; font-size: 13px; line-height: 1.7; margin-bottom: 10px;
+.hero-icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, #6c63ff, #48cfad);
+    border-radius: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(108,99,255,0.25);
+    animation: iconPop 0.7s cubic-bezier(0.34,1.56,0.64,1) 0.2s both;
 }
-.ctx-label {
-    color: #a78bfa; font-size: 10px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;
+@keyframes iconPop {
+    from { opacity: 0; transform: scale(0.5) rotate(-10deg); }
+    to   { opacity: 1; transform: scale(1) rotate(0deg); }
 }
-.badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: rgba(139,92,246,0.18); border: 1px solid rgba(139,92,246,0.3);
-    color: #c4b5fd; font-size: 11px; font-weight: 500;
-    letter-spacing: 0.05em; text-transform: uppercase;
-    padding: 4px 12px; border-radius: 999px; margin-bottom: 12px;
+.hero-title {
+    font-family: 'Playfair Display', serif !important;
+    font-size: 2.6rem;
+    font-weight: 600;
+    color: #1a1a2e !important;
+    -webkit-text-fill-color: transparent !important;
+    background: linear-gradient(135deg, #1a1a2e 0%, #6c63ff 60%, #48cfad 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    line-height: 1.2;
+    margin-bottom: 10px;
+    animation: fadeUp 0.6s ease 0.3s both;
 }
-.pulse {
-    width: 6px; height: 6px; background: #34d399;
-    border-radius: 50%; display: inline-block; animation: pulse 2s infinite;
+.hero-sub {
+    color: #888 !important;
+    -webkit-text-fill-color: #888 !important;
+    font-size: 15px;
+    line-height: 1.6;
+    animation: fadeUp 0.6s ease 0.4s both;
 }
-@keyframes pulse {
-    0%   { box-shadow: 0 0 0 0   rgba(52,211,153,.5); }
-    70%  { box-shadow: 0 0 0 5px rgba(52,211,153,0); }
-    100% { box-shadow: 0 0 0 0   rgba(52,211,153,0); }
+.hero-sub strong {
+    color: #6c63ff !important;
+    -webkit-text-fill-color: #6c63ff !important;
+    font-weight: 600;
 }
-.grad-title {
-    background: linear-gradient(135deg, #a78bfa 0%, #38bdf8 50%, #34d399 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    background-clip: text; font-size: 2.6rem; font-weight: 300; line-height: 1.2; margin: 0 0 8px;
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: none; }
 }
-.no-answer-box {
-    background: rgba(239,68,68,0.07);
-    border: 1px solid rgba(239,68,68,0.2);
-    border-radius: 16px; padding: 18px 22px;
-    color: #fca5a5; font-size: 14px; line-height: 1.7;
+
+/* ── Status pill ── */
+.status-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: #f0fdf9;
+    border: 1.5px solid #bbf7e8;
+    border-radius: 99px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #10b981 !important;
+    -webkit-text-fill-color: #10b981 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 16px;
+    animation: fadeUp 0.6s ease 0.1s both;
+}
+.live-dot {
+    width: 7px; height: 7px;
+    background: #10b981;
+    border-radius: 50%;
+    animation: livePulse 1.8s ease-in-out infinite;
+}
+@keyframes livePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+    50%       { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+}
+
+/* ── Stats ── */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 32px;
+    animation: fadeUp 0.6s ease 0.5s both;
+}
+.stat-box {
+    background: #f8f9ff;
+    border: 1.5px solid #e8e8f0;
+    border-radius: 16px;
+    padding: 20px 12px;
+    text-align: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-box:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(108,99,255,0.10);
+}
+.stat-val {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 600;
+    color: #6c63ff !important;
+    -webkit-text-fill-color: #6c63ff !important;
+}
+.stat-lbl {
+    font-size: 11px;
+    color: #aaa !important;
+    -webkit-text-fill-color: #aaa !important;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-top: 4px;
+}
+
+/* ── Search box wrapper ── */
+.search-wrap {
+    background: #ffffff;
+    border: 2px solid #e8e8f0;
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 24px rgba(108,99,255,0.06);
+    animation: fadeUp 0.6s ease 0.55s both;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-wrap:focus-within {
+    border-color: #6c63ff;
+    box-shadow: 0 4px 32px rgba(108,99,255,0.14);
+}
+.search-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #aaa !important;
+    -webkit-text-fill-color: #aaa !important;
+    margin-bottom: 10px;
+}
+
+/* ── Answer card ── */
+.answer-card {
+    background: linear-gradient(135deg, #f0f4ff 0%, #f0fdfb 100%);
+    border: 1.5px solid #ddd6fe;
+    border-radius: 20px;
+    padding: 28px;
+    margin-bottom: 20px;
+    animation: cardIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+}
+.answer-tag {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #6c63ff !important;
+    -webkit-text-fill-color: #6c63ff !important;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+}
+.answer-tag::before {
+    content: '';
+    width: 20px; height: 2px;
+    background: #6c63ff;
+    border-radius: 2px;
+    display: inline-block;
+}
+.answer-text {
+    font-size: 16px !important;
+    line-height: 1.8 !important;
+    color: #1a1a2e !important;
+    -webkit-text-fill-color: #1a1a2e !important;
+    font-weight: 400;
+}
+
+/* ── Confidence bar ── */
+.conf-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 18px; padding-top: 18px;
+    border-top: 1px solid rgba(108,99,255,0.15);
+}
+.conf-label {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #aaa !important; -webkit-text-fill-color: #aaa !important;
+    white-space: nowrap;
+}
+.conf-track {
+    flex: 1; height: 6px;
+    background: #e8e8f0; border-radius: 99px; overflow: hidden;
+}
+.conf-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, #6c63ff, #48cfad);
+    transition: width 1s cubic-bezier(0.22,1,0.36,1);
+}
+.conf-pct {
+    font-size: 13px; font-weight: 700;
+    color: #6c63ff !important; -webkit-text-fill-color: #6c63ff !important;
+    min-width: 40px; text-align: right;
+}
+
+/* ── Context cards ── */
+.ctx-wrap {
+    animation: fadeUp 0.5s ease 0.1s both;
+}
+.ctx-item {
+    background: #fff;
+    border: 1.5px solid #e8e8f0;
+    border-left: 4px solid #6c63ff;
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ctx-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 16px rgba(108,99,255,0.10);
+}
+.ctx-num {
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: #6c63ff !important; -webkit-text-fill-color: #6c63ff !important;
+    margin-bottom: 6px;
+}
+.ctx-text {
+    font-size: 13px; line-height: 1.7;
+    color: #555 !important; -webkit-text-fill-color: #555 !important;
+}
+
+/* ── No-answer card ── */
+.no-ans {
+    background: #fff5f5;
+    border: 1.5px solid #fecdd3;
+    border-radius: 16px;
+    padding: 20px 24px;
+    animation: cardIn 0.4s ease both;
+}
+.no-ans-text {
+    color: #e11d48 !important;
+    -webkit-text-fill-color: #e11d48 !important;
+    font-size: 14px; line-height: 1.7;
+}
+
+/* ── Suggestions ── */
+.sug-wrap {
+    background: #f8f9ff;
+    border: 1.5px solid #e8e8f0;
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-top: 8px;
+    animation: fadeUp 0.6s ease 0.6s both;
+}
+.sug-title {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: #ccc !important; -webkit-text-fill-color: #ccc !important;
+    margin-bottom: 12px;
+}
+.sug-chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+}
+.sug-chip {
+    background: #fff;
+    border: 1.5px solid #e0dffe;
+    border-radius: 99px;
+    padding: 7px 16px;
+    font-size: 13px; font-weight: 500;
+    color: #6c63ff !important; -webkit-text-fill-color: #6c63ff !important;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Nunito', sans-serif;
+}
+.sug-chip:hover {
+    background: #6c63ff;
+    color: #fff !important; -webkit-text-fill-color: #fff !important;
+    border-color: #6c63ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(108,99,255,0.25);
+}
+
+/* ── Divider ── */
+.divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #e8e8f0, transparent);
+    margin: 28px 0;
+}
+
+/* ── Footer ── */
+.footer {
+    text-align: center;
+    color: #ccc !important;
+    -webkit-text-fill-color: #ccc !important;
+    font-size: 12px;
+    margin-top: 40px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ── JS fix — directly patch textarea after Streamlit/React renders it ──────────
+# ── JS: fix any leftover overrides + animate chips ─────────────────────────────
 st.markdown("""
 <script>
 (function() {
-    function fixInputs() {
-        /* ── textarea / input ── */
-        document.querySelectorAll('textarea, input[type="text"], input:not([type])').forEach(function(el) {
-            el.style.setProperty('color',                    '#f1f5f9',                         'important');
-            el.style.setProperty('-webkit-text-fill-color',  '#f1f5f9',                         'important');
-            el.style.setProperty('caret-color',              '#a78bfa',                         'important');
-            el.style.setProperty('background',               '#0f1729',                         'important');
-            el.style.setProperty('background-color',         '#0f1729',                         'important');
-            el.style.setProperty('border',                   '1px solid rgba(139,92,246,0.35)', 'important');
-            el.style.setProperty('border-radius',            '16px',                            'important');
-            el.style.setProperty('font-size',                '14px',                            'important');
-            el.style.setProperty('font-family',              'DM Sans, sans-serif',             'important');
-            el.style.setProperty('padding',                  '14px 18px',                       'important');
+    function applyFixes() {
+        /* inputs */
+        document.querySelectorAll('textarea, input').forEach(function(el) {
+            el.style.setProperty('color',                   '#1a1a2e', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#1a1a2e', 'important');
+            el.style.setProperty('background-color',        '#f8f9ff', 'important');
+            el.style.setProperty('background',              '#f8f9ff', 'important');
+            el.style.setProperty('border',         '2px solid #e8e8f0','important');
+            el.style.setProperty('border-radius',           '14px',    'important');
+            el.style.setProperty('caret-color',             '#6c63ff', 'important');
+            el.style.setProperty('font-family',  'Nunito, sans-serif', 'important');
+            el.style.setProperty('font-size',               '15px',    'important');
+            el.style.setProperty('padding',          '14px 18px',      'important');
         });
-
-        /* ── expander header & content ── */
-        document.querySelectorAll('details, details summary, [data-testid="stExpander"], [data-testid="stExpander"] summary').forEach(function(el) {
-            el.style.setProperty('background',       '#0f1729', 'important');
-            el.style.setProperty('background-color', '#0f1729', 'important');
-            el.style.setProperty('color',            '#94a3b8', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#94a3b8', 'important');
+        /* expander */
+        document.querySelectorAll('details, details summary').forEach(function(el) {
+            el.style.setProperty('background-color', '#f8f9ff', 'important');
+            el.style.setProperty('background',       '#f8f9ff', 'important');
+            el.style.setProperty('color',            '#6c63ff', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#6c63ff', 'important');
         });
-
-        /* ── answer box text ── */
-        document.querySelectorAll('.answer-box, .answer-box *').forEach(function(el) {
-            el.style.setProperty('color',                   '#e2e8f0', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#e2e8f0', 'important');
+        /* answer text */
+        document.querySelectorAll('.answer-text').forEach(function(el) {
+            el.style.setProperty('color',                   '#1a1a2e', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#1a1a2e', 'important');
         });
-
-        /* ── ctx card text ── */
-        document.querySelectorAll('.ctx-card, .ctx-text').forEach(function(el) {
-            el.style.setProperty('color',                   '#94a3b8', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#94a3b8', 'important');
+        /* chip click → fill textarea */
+        document.querySelectorAll('.sug-chip').forEach(function(chip) {
+            chip.onclick = function() {
+                var ta = document.querySelector('textarea');
+                if (ta) {
+                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+                    nativeInputValueSetter.call(ta, chip.innerText);
+                    ta.dispatchEvent(new Event('input', { bubbles: true }));
+                    ta.focus();
+                }
+            };
         });
     }
-    fixInputs();
-    var observer = new MutationObserver(fixInputs);
-    observer.observe(document.body, { childList: true, subtree: true });
+    applyFixes();
+    new MutationObserver(applyFixes).observe(document.body, { childList: true, subtree: true });
 })();
 </script>
 """, unsafe_allow_html=True)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-FAISS_PATH   = "faiss_index.bin"
-ANSWERS_PATH = "answers.pkl"
-EMBED_MODEL  = "all-MiniLM-L6-v2"
-QA_MODEL     = "deepset/roberta-base-squad2"   # extractive QA — no hallucination
-CONFIDENCE_THRESHOLD = 0.15                    # below this = "not found"
+FAISS_PATH  = "faiss_index.bin"
+ANS_PATH    = "answers.pkl"
+EMBED_MODEL = "all-MiniLM-L6-v2"
+QA_MODEL    = "deepset/roberta-base-squad2"
+CONF_THRESH = 0.15
 
-# ── Header ─────────────────────────────────────────────────────────────────────
-st.markdown('<div class="badge"><span class="pulse"></span> System Ready</div>', unsafe_allow_html=True)
-st.markdown('<p class="grad-title">Medical AI Assistant</p>', unsafe_allow_html=True)
-st.markdown(
-    '<p style="color:#64748b;font-size:14px;margin-top:-4px;margin-bottom:28px;">'
-    'Extractive QA over <strong style="color:#94a3b8;">500 PubMed QA</strong> records · '
-    'FAISS · RoBERTa</p>',
-    unsafe_allow_html=True
-)
-
-c1, c2, c3 = st.columns(3)
-c1.metric("PubMed Records", "500")
-c2.metric("Embedding Dims", "384")
-c3.metric("QA Model", "RoBERTa")
-st.markdown("<br>", unsafe_allow_html=True)
-
+# ── Page HTML ──────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="page-wrap">
+  <div class="hero">
+    <div class="status-pill"><span class="live-dot"></span> Live System</div>
+    <div class="hero-icon">🩺</div>
+    <div class="hero-title">MedQuery AI</div>
+    <div class="hero-sub">Extractive answers from <strong>500 PubMed</strong> research papers · Zero hallucination</div>
+  </div>
+  <div class="stats-row">
+    <div class="stat-box"><div class="stat-val">500</div><div class="stat-lbl">PubMed Records</div></div>
+    <div class="stat-box"><div class="stat-val">384</div><div class="stat-lbl">Embed Dims</div></div>
+    <div class="stat-box"><div class="stat-val">Top 5</div><div class="stat-lbl">Context Chunks</div></div>
+  </div>
+  <div class="search-label">Ask a Medical Question</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ── Load system ────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def load_system():
     embed_model = SentenceTransformer(EMBED_MODEL)
 
-    if not os.path.exists(FAISS_PATH) or not os.path.exists(ANSWERS_PATH):
-        st.info("⚙️ First-time setup — building knowledge base…")
-        prog = st.progress(0, text="Loading dataset…")
-        dataset = load_dataset("pubmed_qa", "pqa_labeled", split="train[:500]")
-        answers = [item['long_answer'] for item in dataset]
-        prog.progress(25, text="Creating embeddings…")
-        embeddings = embed_model.encode(answers, show_progress_bar=False)
+    if not os.path.exists(FAISS_PATH) or not os.path.exists(ANS_PATH):
+        prog = st.progress(0, text="Downloading PubMed QA dataset…")
+        ds = load_dataset("pubmed_qa", "pqa_labeled", split="train[:500]")
+        answers = [item['long_answer'] for item in ds]
+        prog.progress(30, text="Creating embeddings…")
+        embs = embed_model.encode(answers, show_progress_bar=False)
         prog.progress(65, text="Building FAISS index…")
-        index = faiss.IndexFlatL2(embeddings.shape[1])
-        index.add(np.array(embeddings))
-        faiss.write_index(index, FAISS_PATH)
-        with open(ANSWERS_PATH, "wb") as f:
+        idx = faiss.IndexFlatL2(embs.shape[1])
+        idx.add(np.array(embs))
+        faiss.write_index(idx, FAISS_PATH)
+        with open(ANS_PATH, "wb") as f:
             pickle.dump(answers, f)
-        prog.progress(100, text="Done!")
+        prog.progress(100, text="Ready!")
     else:
-        index = faiss.read_index(FAISS_PATH)
-        with open(ANSWERS_PATH, "rb") as f:
+        idx = faiss.read_index(FAISS_PATH)
+        with open(ANS_PATH, "rb") as f:
             answers = pickle.load(f)
 
-    # Load extractive QA model directly — bypasses broken pipeline task registry
-    qa_tokenizer = AutoTokenizer.from_pretrained(QA_MODEL)
-    qa_model     = AutoModelForQuestionAnswering.from_pretrained(QA_MODEL)
-    return embed_model, index, answers, qa_tokenizer, qa_model
+    tokenizer = AutoTokenizer.from_pretrained(QA_MODEL)
+    model     = AutoModelForQuestionAnswering.from_pretrained(QA_MODEL)
+    return embed_model, idx, answers, tokenizer, model
 
-
-with st.spinner("Loading AI system…"):
+with st.spinner("Loading AI system — this takes ~1 min on first run…"):
     try:
-        embed_model, index, answers, qa_tokenizer, qa_model = load_system()
-        loaded = True
+        embed_model, idx, answers, tokenizer, model = load_system()
+        ready = True
     except Exception as e:
-        st.error(f"❌ Failed to load: {e}")
-        loaded = False
+        st.error(f"Failed to load: {e}")
+        ready = False
 
-if not loaded:
+if not ready:
     st.stop()
 
-
-# ── Retrieval + QA ─────────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────────
 def retrieve(query, k=5):
     vec = embed_model.encode([query])
-    _, idxs = index.search(np.array(vec), k)
+    _, idxs = idx.search(np.array(vec, dtype="float32"), k)
     return [answers[i] for i in idxs[0]]
 
-def answer_question(query, retrieved_chunks):
-    """
-    Extractive QA using AutoModelForQuestionAnswering directly.
-    RoBERTa reads context and extracts the exact answer span — no hallucination.
-    Returns (answer_text, confidence_score, combined_context).
-    """
-    combined_context = " ".join(retrieved_chunks)
-
-    inputs = qa_tokenizer(
-        query,
-        combined_context,
-        return_tensors="pt",
-        truncation=True,
-        max_length=512
-    )
-
+def extract_answer(question, chunks):
+    context = " ".join(chunks)
+    inputs  = tokenizer(question, context, return_tensors="pt",
+                        truncation=True, max_length=512)
     with torch.no_grad():
-        outputs = qa_model(**inputs)
-
-    start = torch.argmax(outputs.start_logits)
-    end   = torch.argmax(outputs.end_logits) + 1
-
-    answer = qa_tokenizer.convert_tokens_to_string(
-        qa_tokenizer.convert_ids_to_tokens(inputs["input_ids"][0][start:end])
+        out = model(**inputs)
+    s = torch.argmax(out.start_logits)
+    e = torch.argmax(out.end_logits) + 1
+    ans = tokenizer.convert_tokens_to_string(
+        tokenizer.convert_ids_to_tokens(inputs["input_ids"][0][s:e])
     )
+    sc = (torch.softmax(out.start_logits, dim=1)[0][s].item() +
+          torch.softmax(out.end_logits,   dim=1)[0][e-1].item()) / 2
+    return ans.strip(), sc, context
 
-    # Confidence = average of softmax-normalised start & end scores
-    start_score = torch.softmax(outputs.start_logits, dim=1)[0][start].item()
-    end_score   = torch.softmax(outputs.end_logits,   dim=1)[0][end-1].item()
-    score = (start_score + end_score) / 2
-
-    return answer, score, combined_context
-
-
-# ── Query UI ───────────────────────────────────────────────────────────────────
+# ── Input UI ───────────────────────────────────────────────────────────────────
 query = st.text_area(
-    "ASK A MEDICAL QUESTION",
+    "question",
     placeholder="e.g. What is the universal blood donor group? What causes hypertension?",
-    height=110
+    height=120,
+    label_visibility="collapsed"
 )
 
-col_btn, col_hint = st.columns([2, 5])
-with col_btn:
-    ask = st.button("🔍  Search", use_container_width=True)
-with col_hint:
-    st.markdown(
-        '<p style="color:#334155;font-size:12px;padding-top:13px;">Ctrl+Enter to submit</p>',
-        unsafe_allow_html=True
-    )
+col1, col2 = st.columns([3, 2])
+with col1:
+    search = st.button("🔍  Search PubMed", use_container_width=True)
 
+# ── Suggestions ────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="sug-wrap">
+  <div class="sug-title">Try these</div>
+  <div class="sug-chips">
+    <button class="sug-chip">What is diabetes?</button>
+    <button class="sug-chip">What causes hypertension?</button>
+    <button class="sug-chip">How does chemotherapy work?</button>
+    <button class="sug-chip">What is insulin resistance?</button>
+    <button class="sug-chip">What is a myocardial infarction?</button>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
 # ── Answer ─────────────────────────────────────────────────────────────────────
-if ask:
+if search:
     if not query.strip():
-        st.warning("⚠️ Please enter a question.")
+        st.warning("Please type a question above.")
     else:
-        with st.spinner("Searching PubMed knowledge base…"):
-            retrieved  = retrieve(query, k=5)
-            ans, score, ctx = answer_question(query, retrieved)
+        with st.spinner("Searching and extracting answer…"):
+            chunks  = retrieve(query)
+            ans, sc, _ = extract_answer(query, chunks)
 
-        if score < CONFIDENCE_THRESHOLD:
-            st.markdown(
-                '<div class="no-answer-box">'
-                '🔍 The knowledge base doesn\'t contain a confident answer for this question. '
-                'Try rephrasing, or this topic may not be covered in the 500 PubMed samples.'
-                '</div>',
-                unsafe_allow_html=True
-            )
+        pct = round(sc * 100)
+
+        if sc < CONF_THRESH or len(ans.strip()) < 3:
+            st.markdown("""
+            <div class="no-ans">
+              <div class="no-ans-text">
+                🔍 No confident answer found in the PubMed knowledge base for this question.
+                Try rephrasing, or this topic may not be covered in the 500 sample records.
+              </div>
+            </div>""", unsafe_allow_html=True)
         else:
-            confidence_pct = round(score * 100)
-            st.markdown(
-                '<p style="color:#34d399;font-size:11px;font-weight:600;'
-                'text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">✦ Extracted Answer</p>',
-                unsafe_allow_html=True
-            )
-            st.markdown(
-                f'<div class="answer-box">'
-                f'{ans}'
-                f'<div class="confidence-bar-wrap">'
-                f'  <span class="confidence-label">Confidence</span>'
-                f'  <div class="confidence-bar-bg">'
-                f'    <div class="confidence-bar-fill" style="width:{confidence_pct}%"></div>'
-                f'  </div>'
-                f'  <span class="confidence-pct">{confidence_pct}%</span>'
-                f'</div></div>',
-                unsafe_allow_html=True
-            )
+            st.markdown(f"""
+            <div class="answer-card">
+              <div class="answer-tag">Extracted Answer</div>
+              <div class="answer-text">{ans}</div>
+              <div class="conf-row">
+                <span class="conf-label">Confidence</span>
+                <div class="conf-track">
+                  <div class="conf-fill" style="width:{pct}%"></div>
+                </div>
+                <span class="conf-pct">{pct}%</span>
+              </div>
+            </div>""", unsafe_allow_html=True)
 
-        with st.expander("📚 Retrieved Context — Top 5 PubMed Matches"):
-            for i, r in enumerate(retrieved, 1):
-                st.markdown(
-                    f'<div class="ctx-card">'
-                    f'<div class="ctx-label">Match {i} · PubMed QA</div>{r}'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
+        with st.expander("📄 View Retrieved Context — Top 5 PubMed Matches"):
+            st.markdown('<div class="ctx-wrap">', unsafe_allow_html=True)
+            for i, c in enumerate(chunks, 1):
+                st.markdown(f"""
+                <div class="ctx-item">
+                  <div class="ctx-num">Match {i} · PubMed QA</div>
+                  <div class="ctx-text">{c}</div>
+                </div>""", unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
-st.markdown(
-    '<p style="color:#1e293b;font-size:11px;text-align:center;">'
-    '⚠️ For informational purposes only — not a substitute for professional medical advice.'
-    '</p>',
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="footer">
+  ⚠️ For educational purposes only — not a substitute for professional medical advice.<br>
+  Built with FAISS · RoBERTa · Sentence Transformers · Streamlit
+</div>
+""", unsafe_allow_html=True)
