@@ -20,7 +20,9 @@ st.set_page_config(
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
-* { font-family: 'DM Sans', sans-serif !important; }
+body, p, span, div, button, label, h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Sans', sans-serif !important;
+}
 .stApp {
     background:
         radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18) 0%, transparent 60%),
@@ -174,6 +176,31 @@ hr { border-color: rgba(255,255,255,0.07) !important; }
     color: #fca5a5; font-size: 14px; line-height: 1.7;
 }
 </style>
+""", unsafe_allow_html=True)
+
+# ── JS fix — directly patch textarea after Streamlit/React renders it ──────────
+st.markdown("""
+<script>
+(function() {
+    function fixInputs() {
+        var els = document.querySelectorAll('textarea, input[type="text"], input:not([type])');
+        els.forEach(function(el) {
+            el.style.setProperty('color',                    '#f1f5f9',                   'important');
+            el.style.setProperty('-webkit-text-fill-color',  '#f1f5f9',                   'important');
+            el.style.setProperty('caret-color',              '#a78bfa',                   'important');
+            el.style.setProperty('background',               'rgba(255,255,255,0.06)',     'important');
+            el.style.setProperty('border',                   '1px solid rgba(255,255,255,0.14)', 'important');
+            el.style.setProperty('border-radius',            '16px',                      'important');
+            el.style.setProperty('font-size',                '14px',                      'important');
+            el.style.setProperty('font-family',              'DM Sans, sans-serif',       'important');
+        });
+    }
+    /* run immediately + watch for Streamlit re-renders */
+    fixInputs();
+    var observer = new MutationObserver(fixInputs);
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
