@@ -3,9 +3,7 @@ import faiss
 import pickle
 import numpy as np
 import os
-import torch
 from sentence_transformers import SentenceTransformer
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 from datasets import load_dataset
 
 st.set_page_config(
@@ -524,8 +522,6 @@ st.markdown("""
 FAISS_PATH  = "faiss_index.bin"
 ANS_PATH    = "answers.pkl"
 EMBED_MODEL = "all-MiniLM-L6-v2"
-QA_MODEL    = "deepset/roberta-base-squad2"
-CONF_THRESH = 0.15
 
 # ── Page HTML ──────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -549,32 +545,28 @@ st.markdown("""
 @st.cache_resource(show_spinner=False)
 def load_system():
     embed_model = SentenceTransformer(EMBED_MODEL)
-
     if not os.path.exists(FAISS_PATH) or not os.path.exists(ANS_PATH):
         prog = st.progress(0, text="Downloading PubMed QA dataset…")
         ds = load_dataset("pubmed_qa", "pqa_labeled", split="train[:500]")
         answers = [item['long_answer'] for item in ds]
-        prog.progress(30, text="Creating embeddings…")
+        prog.progress(40, text="Creating embeddings…")
         embs = embed_model.encode(answers, show_progress_bar=False)
-        prog.progress(65, text="Building FAISS index…")
-        idx = faiss.IndexFlatL2(embs.shape[1])
-        idx.add(np.array(embs))
-        faiss.write_index(idx, FAISS_PATH)
+        prog.progress(80, text="Building FAISS index…")
+        index = faiss.IndexFlatL2(embs.shape[1])
+        index.add(np.array(embs))
+        faiss.write_index(index, FAISS_PATH)
         with open(ANS_PATH, "wb") as f:
             pickle.dump(answers, f)
         prog.progress(100, text="Ready!")
     else:
-        idx = faiss.read_index(FAISS_PATH)
+        index = faiss.read_index(FAISS_PATH)
         with open(ANS_PATH, "rb") as f:
             answers = pickle.load(f)
+    return embed_model, index, answers
 
-    tokenizer = AutoTokenizer.from_pretrained(QA_MODEL)
-    model     = AutoModelForQuestionAnswering.from_pretrained(QA_MODEL)
-    return embed_model, idx, answers, tokenizer, model
-
-with st.spinner("Loading AI system — this takes ~1 min on first run…"):
+with st.spinner("Loading system…"):
     try:
-        embed_model, idx, answers, tokenizer, model = load_system()
+        embed_model, idx, answers = load_system()
         ready = True
     except Exception as e:
         st.error(f"Failed to load: {e}")
@@ -585,29 +577,18 @@ if not ready:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 def retrieve(query, k=5):
+    """Return top-k most semantically similar PubMed passages."""
     vec = embed_model.encode([query])
-    _, idxs = idx.search(np.array(vec, dtype="float32"), k)
-    return [answers[i] for i in idxs[0]]
-
-def extract_answer(question, chunks):
-    context = " ".join(chunks)
-    inputs  = tokenizer(question, context, return_tensors="pt",
-                        truncation=True, max_length=512)
-    with torch.no_grad():
-        out = model(**inputs)
-    s = torch.argmax(out.start_logits)
-    e = torch.argmax(out.end_logits) + 1
-    ans = tokenizer.convert_tokens_to_string(
-        tokenizer.convert_ids_to_tokens(inputs["input_ids"][0][s:e])
-    )
-    sc = (torch.softmax(out.start_logits, dim=1)[0][s].item() +
-          torch.softmax(out.end_logits,   dim=1)[0][e-1].item()) / 2
-    return ans.strip(), sc, context
+    distances, idxs = idx.search(np.array(vec, dtype="float32"), k)
+    results = [answers[i] for i in idxs[0]]
+    # Convert L2 distance → rough similarity score (lower distance = better)
+    scores  = [max(0, 1 - (d / 200)) for d in distances[0]]
+    return results, scores
 
 # ── Input UI ───────────────────────────────────────────────────────────────────
 query = st.text_area(
     "question",
-    placeholder="e.g. What is the universal blood donor group? What causes hypertension?",
+    placeholder="e.g. What is diabetes? What causes hypertension?",
     height=120,
     label_visibility="collapsed"
 )
@@ -635,51 +616,64 @@ st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 # ── Answer ─────────────────────────────────────────────────────────────────────
 if search:
     if not query.strip():
-        st.warning("Please type a question above.")
+        st.warning("⚠️ Please type a question above.")
     else:
-        with st.spinner("Searching and extracting answer…"):
-            chunks  = retrieve(query)
-            ans, sc, _ = extract_answer(query, chunks)
+        with st.spinner("Searching PubMed knowledge base…"):
+            chunks, scores = retrieve(query)
 
-        pct = round(sc * 100)
+        # Best match = top retrieved passage (most semantically similar)
+        best_answer = chunks[0]
+        best_score  = round(scores[0] * 100)
 
-        if sc < CONF_THRESH or len(ans.strip()) < 3:
-            st.markdown("""
-            <div style="background:#fff5f5;border:1.5px solid #fecdd3;border-radius:16px;padding:20px 24px;">
-              <p style="color:#e11d48 !important;-webkit-text-fill-color:#e11d48 !important;font-size:14px;line-height:1.7;margin:0;">
-                🔍 No confident answer found in the PubMed knowledge base for this question.
-                Try rephrasing, or this topic may not be covered in the 500 sample records.
-              </p>
-            </div>""", unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div style="background:linear-gradient(135deg,#f0f4ff 0%,#f0fdfb 100%);border:1.5px solid #ddd6fe;border-radius:20px;padding:28px;margin-bottom:20px;animation:cardIn 0.5s cubic-bezier(0.22,1,0.36,1) both;">
-              <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#6c63ff !important;-webkit-text-fill-color:#6c63ff !important;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
-                <span style="width:20px;height:2px;background:#6c63ff;border-radius:2px;display:inline-block;"></span>
-                Extracted Answer
-              </div>
-              <p style="font-size:16px !important;line-height:1.8 !important;color:#1a1a2e !important;-webkit-text-fill-color:#1a1a2e !important;font-weight:400;margin:0 0 18px 0;">{ans}</p>
-              <div style="display:flex;align-items:center;gap:12px;padding-top:18px;border-top:1px solid rgba(108,99,255,0.15);">
-                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#aaa !important;-webkit-text-fill-color:#aaa !important;white-space:nowrap;">Confidence</span>
-                <div class="conf-track">
-                  <div style="flex:1;height:6px;background:#e8e8f0;border-radius:99px;overflow:hidden;">
-                    <div style="width:{pct}%;height:100%;border-radius:99px;background:linear-gradient(90deg,#6c63ff,#48cfad);transition:width 1s cubic-bezier(0.22,1,0.36,1);"></div>
-                  </div>
-                <span style="font-size:13px;font-weight:700;color:#6c63ff !important;-webkit-text-fill-color:#6c63ff !important;min-width:40px;text-align:right;">{pct}%</span>
-              </div>
-            </div>""", unsafe_allow_html=True)
+        # ── Answer card label ──
+        st.markdown("""
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <span style="width:24px;height:2px;background:#6c63ff;border-radius:2px;display:inline-block;"></span>
+          <span style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#6c63ff;">Most Relevant PubMed Result</span>
+        </div>
+        """, unsafe_allow_html=True)
 
-        with st.expander("📄 View Retrieved Context — Top 5 PubMed Matches"):
-            for i, c in enumerate(chunks, 1):
+        # ── Answer text — use st.info() so it's ALWAYS visible ──
+        st.info(best_answer)
+
+        # ── Confidence bar ──
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;gap:12px;margin:12px 0 24px 0;">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;
+                       letter-spacing:0.08em;color:#aaa;white-space:nowrap;">
+            Relevance Score
+          </span>
+          <div style="flex:1;height:6px;background:#e8e8f0;border-radius:99px;overflow:hidden;">
+            <div style="width:{best_score}%;height:100%;border-radius:99px;
+                        background:linear-gradient(90deg,#6c63ff,#48cfad);">
+            </div>
+          </div>
+          <span style="font-size:13px;font-weight:700;color:#6c63ff;min-width:40px;text-align:right;">
+            {best_score}%
+          </span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Other matches ──
+        with st.expander(f"📄 View All 5 PubMed Matches"):
+            for i, (chunk, score) in enumerate(zip(chunks, scores), 1):
+                pct = round(score * 100)
                 st.markdown(f"""
-                <div style="background:#fff;border:1.5px solid #e8e8f0;border-left:4px solid #6c63ff;border-radius:14px;padding:16px 20px;margin-bottom:12px;">
-                  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#6c63ff !important;-webkit-text-fill-color:#6c63ff !important;margin-bottom:8px;">Match {i} · PubMed QA</div>
-                  <div style="font-size:13px;line-height:1.7;color:#555 !important;-webkit-text-fill-color:#555 !important;">{c}</div>
+                <div style="background:#f8f9ff;border-left:4px solid #6c63ff;
+                            border-radius:0 12px 12px 0;padding:16px 20px;
+                            margin-bottom:12px;">
+                  <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                               letter-spacing:0.1em;color:#6c63ff;margin-bottom:8px;">
+                    Match {i} &nbsp;·&nbsp; Relevance {pct}%
+                  </div>
                 </div>""", unsafe_allow_html=True)
+                # Use st.write for chunk text — always visible, never affected by CSS
+                st.write(chunk)
+                st.divider()
 
 st.markdown("""
-<div style="text-align:center;color:#ccc;font-size:12px;margin-top:40px;font-family:'Nunito',sans-serif;">
-  ⚠️ For educational purposes only — not a substitute for professional medical advice.<br>
-  Built with FAISS · RoBERTa · Sentence Transformers · Streamlit
+<div style="text-align:center;color:#bbb;font-size:12px;margin-top:40px;">
+  ⚠️ For educational purposes only — not a substitute for professional medical advice.
+  <br>Built with FAISS · Sentence Transformers · Streamlit
 </div>
 """, unsafe_allow_html=True)
