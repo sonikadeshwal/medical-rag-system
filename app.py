@@ -302,9 +302,42 @@ def search_pubmed(query: str, k: int = 5):
     vec = embed_model.encode([query])
     distances, indices = faiss_index.search(np.array(vec, dtype="float32"), k)
     passages = [answers[i] for i in indices[0]]
-    # Normalise L2 distance to 0–100 relevance score
-    scores = [max(0, round((1 - d / 150) * 100)) for d in distances[0]]
-    return passages, scores
+    scores   = [max(0, round((1 - d / 150) * 100)) for d in distances[0]]
+    return passages, scores, distances[0][0]  # also return raw best distance
+
+def best_sentences(query: str, passages: list, n: int = 3) -> str:
+    """
+    Split retrieved passages into sentences, embed each one,
+    return the top-n most similar to the query joined together.
+    Gives a focused readable answer instead of a full dense abstract.
+    """
+    import re
+    all_sents = []
+    for p in passages:
+        sents = re.split(r'(?<=[.!?])\s+', p.strip())
+        all_sents.extend([s.strip() for s in sents if len(s.strip()) > 40])
+
+    if not all_sents:
+        return passages[0]
+
+    q_vec  = embed_model.encode([query])[0]
+    s_vecs = embed_model.encode(all_sents)
+
+    q_norm  = q_vec  / (np.linalg.norm(q_vec) + 1e-9)
+    s_norms = s_vecs / (np.linalg.norm(s_vecs, axis=1, keepdims=True) + 1e-9)
+    sims    = s_norms @ q_norm
+
+    top_idx = np.argsort(sims)[::-1]
+    seen, chosen = set(), []
+    for i in top_idx:
+        s = all_sents[i]
+        if s not in seen:
+            seen.add(s)
+            chosen.append(s)
+        if len(chosen) == n:
+            break
+
+    return " ".join(chosen)
 
 # ── Input ──────────────────────────────────────────────────────────────────────
 st.markdown("**Ask a medical question:**")
@@ -341,14 +374,20 @@ if clicked:
         st.warning("⚠️ Please type a medical question above.")
     else:
         with st.spinner("🔍 Searching PubMed knowledge base…"):
-            passages, scores = search_pubmed(query)
+            passages, scores, best_dist = search_pubmed(query)
 
-        best      = passages[0]
-        best_score = scores[0]
+        # ── Guard: if best L2 distance too high → not a medical question ──
+        # Empirically tuned: medical queries score < 100, random text > 120
+        if best_dist > 110:
+            st.warning("🩺 This doesn't seem to be a medical question. Please ask something related to health, medicine, or biology.")
+            st.stop()
 
-        # ── Best answer (use st.success so text is ALWAYS visible) ──
-        st.markdown('<div class="result-label"><span class="result-line"></span><span class="result-tag">Most Relevant PubMed Result</span></div>', unsafe_allow_html=True)
-        st.success(best)
+        focused_answer = best_sentences(query, passages, n=3)
+        best_score     = scores[0]
+
+        # ── Best answer ──
+        st.markdown('<div class="result-label"><span class="result-line"></span><span class="result-tag">Most Relevant PubMed Sentences</span></div>', unsafe_allow_html=True)
+        st.success(focused_answer)
 
         # ── Relevance score bar ──
         st.markdown(f"""
