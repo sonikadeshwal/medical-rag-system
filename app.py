@@ -6,6 +6,7 @@ import os
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 
+# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="MedQuery AI",
     page_icon="🩺",
@@ -13,507 +14,223 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# ── CSS: ONLY decorative styles, NO text color overrides ──────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Nunito:wght@300;400;500;600&display=swap');
 
-/* ── Reset Streamlit chrome ── */
-#MainMenu, footer, header, .stDeployButton, [data-testid="stToolbar"] { display: none !important; }
-.block-container { padding: 0 !important; max-width: 100% !important; }
-section[data-testid="stSidebar"] { display: none !important; }
+/* Hide Streamlit chrome */
+#MainMenu, footer, header, [data-testid="stToolbar"],
+[data-testid="stDecoration"], .stDeployButton { display:none !important; }
+section[data-testid="stSidebar"] { display:none !important; }
+.block-container { padding: 2rem 1.5rem 4rem !important; max-width: 750px !important; }
 
-/* ── Force white background everywhere ── */
-html, body, .stApp, .main, [data-testid="stAppViewContainer"],
-[data-testid="stMain"], [data-testid="stVerticalBlock"] {
+/* White background */
+html, body, .stApp, [data-testid="stAppViewContainer"] {
     background: #ffffff !important;
     background-color: #ffffff !important;
+}
+
+/* Font on non-input elements only */
+h1,h2,h3,h4,h5,h6,p,li,span,label,div,button {
     font-family: 'Nunito', sans-serif !important;
 }
 
-/* ── All text defaults ── */
-p, span, div, li, label {
-    font-family: 'Nunito', sans-serif !important;
-    color: #1a1a2e !important;
-}
-
-/* ── Inputs: force visible text ── */
-textarea, input {
-    font-family: 'Nunito', sans-serif !important;
-    font-size: 15px !important;
-    color: #1a1a2e !important;
-    -webkit-text-fill-color: #1a1a2e !important;
-    background-color: #f8f9ff !important;
-    background: #f8f9ff !important;
-    border: 2px solid #e8e8f0 !important;
+/* ── Textarea / input ── */
+textarea, input[type="text"], input[type="search"] {
+    background-color: #f5f5ff !important;
+    border: 2px solid #e0e0f0 !important;
     border-radius: 14px !important;
-    padding: 14px 18px !important;
+    font-size: 15px !important;
+    font-family: 'Nunito', sans-serif !important;
+    color: #111 !important;
     caret-color: #6c63ff !important;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-    box-shadow: none !important;
+    padding: 14px 18px !important;
+    transition: border-color .2s, box-shadow .2s !important;
 }
 textarea:focus, input:focus {
     border-color: #6c63ff !important;
-    box-shadow: 0 0 0 4px rgba(108,99,255,0.10) !important;
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    color: #1a1a2e !important;
-    -webkit-text-fill-color: #1a1a2e !important;
+    box-shadow: 0 0 0 3px rgba(108,99,255,.12) !important;
     outline: none !important;
-}
-textarea::placeholder, input::placeholder {
-    color: #aaa !important;
-    -webkit-text-fill-color: #aaa !important;
-}
-
-/* ── Streamlit label ── */
-label, [data-testid="stWidgetLabel"] p {
-    display: none !important;
 }
 
 /* ── Button ── */
 .stButton > button {
-    background: linear-gradient(135deg, #6c63ff 0%, #48cfad 100%) !important;
+    background: linear-gradient(135deg, #6c63ff, #48cfad) !important;
     color: #fff !important;
-    -webkit-text-fill-color: #fff !important;
     border: none !important;
     border-radius: 50px !important;
-    padding: 12px 36px !important;
-    font-family: 'Nunito', sans-serif !important;
+    padding: 12px 32px !important;
     font-size: 15px !important;
     font-weight: 600 !important;
-    letter-spacing: 0.3px !important;
-    cursor: pointer !important;
-    box-shadow: 0 4px 20px rgba(108,99,255,0.30) !important;
-    transition: all 0.25s ease !important;
+    font-family: 'Nunito', sans-serif !important;
+    box-shadow: 0 4px 18px rgba(108,99,255,.30) !important;
+    transition: all .25s ease !important;
     width: 100% !important;
 }
 .stButton > button:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 8px 28px rgba(108,99,255,0.40) !important;
+    box-shadow: 0 8px 28px rgba(108,99,255,.40) !important;
 }
-.stButton > button:active {
-    transform: translateY(0) !important;
-}
-
-/* ── Spinner ── */
-.stSpinner > div { border-top-color: #6c63ff !important; }
-
-/* ── Expander ── */
-[data-testid="stExpander"], details {
-    background: #f8f9ff !important;
-    background-color: #f8f9ff !important;
-    border: 1.5px solid #e8e8f0 !important;
-    border-radius: 14px !important;
-    overflow: hidden !important;
-}
-details summary, [data-testid="stExpander"] summary {
-    background: #f8f9ff !important;
-    background-color: #f8f9ff !important;
-    color: #6c63ff !important;
-    -webkit-text-fill-color: #6c63ff !important;
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    padding: 14px 18px !important;
-}
-details > div, [data-testid="stExpander"] > div {
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    padding: 16px !important;
-}
-
-/* ── Alert ── */
-.stAlert {
-    border-radius: 14px !important;
-    font-family: 'Nunito', sans-serif !important;
-}
+.stButton > button:active { transform: translateY(0) !important; }
 
 /* ── Metric cards ── */
 [data-testid="metric-container"] {
-    background: #f8f9ff !important;
-    border: 1.5px solid #e8e8f0 !important;
+    background: #f8f8ff !important;
+    border: 1.5px solid #e8e8f8 !important;
     border-radius: 16px !important;
-    padding: 20px !important;
+    padding: 18px !important;
     text-align: center !important;
 }
-[data-testid="stMetricValue"] {
-    color: #6c63ff !important;
-    -webkit-text-fill-color: #6c63ff !important;
-    font-size: 26px !important;
-    font-weight: 600 !important;
-    font-family: 'Playfair Display', serif !important;
-}
-[data-testid="stMetricLabel"] p {
-    display: block !important;
-    color: #888 !important;
-    -webkit-text-fill-color: #888 !important;
-    font-size: 11px !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.08em !important;
+
+/* ── Expander ── */
+[data-testid="stExpander"] {
+    border: 1.5px solid #e8e8f8 !important;
+    border-radius: 14px !important;
+    background: #f8f8ff !important;
 }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: #f1f1f1; }
-::-webkit-scrollbar-thumb { background: #d0d0e8; border-radius: 99px; }
-</style>
-
-<style>
-/* ── Animated page wrapper ── */
-.page-wrap {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 48px 24px 60px;
-    animation: pageIn 0.6s cubic-bezier(0.22,1,0.36,1) both;
-}
-@keyframes pageIn {
-    from { opacity: 0; transform: translateY(24px); }
-    to   { opacity: 1; transform: none; }
-}
-
-/* ── Header ── */
-.hero {
-    text-align: center;
-    margin-bottom: 40px;
-}
-.hero-icon {
-    width: 64px; height: 64px;
-    background: linear-gradient(135deg, #6c63ff, #48cfad);
-    border-radius: 20px;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 30px;
-    margin-bottom: 20px;
-    box-shadow: 0 8px 24px rgba(108,99,255,0.25);
-    animation: iconPop 0.7s cubic-bezier(0.34,1.56,0.64,1) 0.2s both;
-}
-@keyframes iconPop {
-    from { opacity: 0; transform: scale(0.5) rotate(-10deg); }
-    to   { opacity: 1; transform: scale(1) rotate(0deg); }
-}
-.hero-title {
-    font-family: 'Playfair Display', serif !important;
-    font-size: 2.6rem;
-    font-weight: 600;
-    color: #1a1a2e !important;
-    -webkit-text-fill-color: transparent !important;
-    background: linear-gradient(135deg, #1a1a2e 0%, #6c63ff 60%, #48cfad 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    line-height: 1.2;
-    margin-bottom: 10px;
-    animation: fadeUp 0.6s ease 0.3s both;
-}
-.hero-sub {
-    color: #888 !important;
-    -webkit-text-fill-color: #888 !important;
-    font-size: 15px;
-    line-height: 1.6;
-    animation: fadeUp 0.6s ease 0.4s both;
-}
-.hero-sub strong {
-    color: #6c63ff !important;
-    -webkit-text-fill-color: #6c63ff !important;
-    font-weight: 600;
-}
-@keyframes fadeUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: none; }
-}
-
-/* ── Status pill ── */
-.status-pill {
-    display: inline-flex; align-items: center; gap: 7px;
-    background: #f0fdf9;
-    border: 1.5px solid #bbf7e8;
-    border-radius: 99px;
-    padding: 5px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #10b981 !important;
-    -webkit-text-fill-color: #10b981 !important;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 16px;
-    animation: fadeUp 0.6s ease 0.1s both;
-}
-.live-dot {
-    width: 7px; height: 7px;
-    background: #10b981;
-    border-radius: 50%;
-    animation: livePulse 1.8s ease-in-out infinite;
-}
-@keyframes livePulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
-    50%       { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
-}
-
-/* ── Stats ── */
-.stats-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
-    margin-bottom: 32px;
-    animation: fadeUp 0.6s ease 0.5s both;
-}
-.stat-box {
-    background: #f8f9ff;
-    border: 1.5px solid #e8e8f0;
-    border-radius: 16px;
-    padding: 20px 12px;
-    text-align: center;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.stat-box:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(108,99,255,0.10);
-}
-.stat-val {
-    font-family: 'Playfair Display', serif;
-    font-size: 24px;
-    font-weight: 600;
-    color: #6c63ff !important;
-    -webkit-text-fill-color: #6c63ff !important;
-}
-.stat-lbl {
-    font-size: 11px;
-    color: #aaa !important;
-    -webkit-text-fill-color: #aaa !important;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    margin-top: 4px;
-}
-
-/* ── Search box wrapper ── */
-.search-wrap {
-    background: #ffffff;
-    border: 2px solid #e8e8f0;
-    border-radius: 20px;
-    padding: 24px;
-    margin-bottom: 24px;
-    box-shadow: 0 4px 24px rgba(108,99,255,0.06);
-    animation: fadeUp 0.6s ease 0.55s both;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-.search-wrap:focus-within {
-    border-color: #6c63ff;
-    box-shadow: 0 4px 32px rgba(108,99,255,0.14);
-}
-.search-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #aaa !important;
-    -webkit-text-fill-color: #aaa !important;
-    margin-bottom: 10px;
-}
-
-/* ── Answer card ── */
-.answer-card {
-    background: linear-gradient(135deg, #f0f4ff 0%, #f0fdfb 100%);
-    border: 1.5px solid #ddd6fe;
-    border-radius: 20px;
-    padding: 28px;
-    margin-bottom: 20px;
-    animation: cardIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
-}
-@keyframes cardIn {
-    from { opacity: 0; transform: translateY(16px) scale(0.98); }
-    to   { opacity: 1; transform: none; }
-}
-.answer-tag {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #6c63ff !important;
-    -webkit-text-fill-color: #6c63ff !important;
-    margin-bottom: 12px;
-    display: flex; align-items: center; gap: 6px;
-}
-.answer-tag::before {
-    content: '';
-    width: 20px; height: 2px;
-    background: #6c63ff;
-    border-radius: 2px;
-    display: inline-block;
-}
-.answer-text {
-    font-size: 16px !important;
+/* ── Streamlit info box ── */
+[data-testid="stAlert"] {
+    border-radius: 14px !important;
+    font-family: 'Nunito', sans-serif !important;
+    font-size: 15px !important;
     line-height: 1.8 !important;
-    color: #1a1a2e !important;
-    -webkit-text-fill-color: #1a1a2e !important;
-    font-weight: 400;
-}
-
-/* ── Confidence bar ── */
-.conf-row {
-    display: flex; align-items: center; gap: 12px;
-    margin-top: 18px; padding-top: 18px;
-    border-top: 1px solid rgba(108,99,255,0.15);
-}
-.conf-label {
-    font-size: 11px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    color: #aaa !important; -webkit-text-fill-color: #aaa !important;
-    white-space: nowrap;
-}
-.conf-track {
-    flex: 1; height: 6px;
-    background: #e8e8f0; border-radius: 99px; overflow: hidden;
-}
-.conf-fill {
-    height: 100%; border-radius: 99px;
-    background: linear-gradient(90deg, #6c63ff, #48cfad);
-    transition: width 1s cubic-bezier(0.22,1,0.36,1);
-}
-.conf-pct {
-    font-size: 13px; font-weight: 700;
-    color: #6c63ff !important; -webkit-text-fill-color: #6c63ff !important;
-    min-width: 40px; text-align: right;
-}
-
-/* ── Context cards ── */
-.ctx-wrap {
-    animation: fadeUp 0.5s ease 0.1s both;
-}
-.ctx-item {
-    background: #fff;
-    border: 1.5px solid #e8e8f0;
-    border-left: 4px solid #6c63ff;
-    border-radius: 14px;
-    padding: 16px 20px;
-    margin-bottom: 12px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.ctx-item:hover {
-    transform: translateX(4px);
-    box-shadow: 0 4px 16px rgba(108,99,255,0.10);
-}
-.ctx-num {
-    font-size: 10px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.1em;
-    color: #6c63ff !important; -webkit-text-fill-color: #6c63ff !important;
-    margin-bottom: 6px;
-}
-.ctx-text {
-    font-size: 13px; line-height: 1.7;
-    color: #555 !important; -webkit-text-fill-color: #555 !important;
-}
-
-/* ── No-answer card ── */
-.no-ans {
-    background: #fff5f5;
-    border: 1.5px solid #fecdd3;
-    border-radius: 16px;
-    padding: 20px 24px;
-    animation: cardIn 0.4s ease both;
-}
-.no-ans-text {
-    color: #e11d48 !important;
-    -webkit-text-fill-color: #e11d48 !important;
-    font-size: 14px; line-height: 1.7;
-}
-
-/* ── Suggestions ── */
-.sug-wrap {
-    background: #f8f9ff;
-    border: 1.5px solid #e8e8f0;
-    border-radius: 16px;
-    padding: 20px 24px;
-    margin-top: 8px;
-    animation: fadeUp 0.6s ease 0.6s both;
-}
-.sug-title {
-    font-size: 11px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.1em;
-    color: #ccc !important; -webkit-text-fill-color: #ccc !important;
-    margin-bottom: 12px;
-}
-.sug-chips {
-    display: flex; flex-wrap: wrap; gap: 8px;
-}
-.sug-chip {
-    background: #fff;
-    border: 1.5px solid #e0dffe;
-    border-radius: 99px;
-    padding: 7px 16px;
-    font-size: 13px; font-weight: 500;
-    color: #6c63ff !important; -webkit-text-fill-color: #6c63ff !important;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-family: 'Nunito', sans-serif;
-}
-.sug-chip:hover {
-    background: #6c63ff;
-    color: #fff !important; -webkit-text-fill-color: #fff !important;
-    border-color: #6c63ff;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(108,99,255,0.25);
 }
 
 /* ── Divider ── */
-.divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #e8e8f0, transparent);
-    margin: 28px 0;
-}
+hr { border-color: #f0f0f8 !important; }
 
-/* ── Footer ── */
-.footer {
-    text-align: center;
-    color: #ccc !important;
-    -webkit-text-fill-color: #ccc !important;
-    font-size: 12px;
-    margin-top: 40px;
+/* Scrollbar */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-thumb { background:#d0d0f0; border-radius:99px; }
+
+/* ── Hero animations ── */
+@keyframes fadeUp {
+    from { opacity:0; transform:translateY(16px); }
+    to   { opacity:1; transform:none; }
 }
+@keyframes iconPop {
+    from { opacity:0; transform:scale(.5) rotate(-15deg); }
+    to   { opacity:1; transform:scale(1) rotate(0); }
+}
+@keyframes livePulse {
+    0%,100% { box-shadow:0 0 0 0 rgba(16,185,129,.5); }
+    50%      { box-shadow:0 0 0 6px rgba(16,185,129,0); }
+}
+.hero-icon {
+    width:64px; height:64px;
+    background:linear-gradient(135deg,#6c63ff,#48cfad);
+    border-radius:20px;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:30px; margin-bottom:16px;
+    box-shadow:0 8px 24px rgba(108,99,255,.25);
+    animation: iconPop .7s cubic-bezier(.34,1.56,.64,1) .1s both;
+}
+.hero-title {
+    font-family:'Playfair Display',serif !important;
+    font-size:2.5rem; font-weight:600; line-height:1.2;
+    background:linear-gradient(135deg,#1a1a2e,#6c63ff 60%,#48cfad);
+    -webkit-background-clip:text; background-clip:text;
+    color:transparent !important;
+    animation: fadeUp .6s ease .2s both;
+    margin-bottom:8px;
+}
+.hero-sub {
+    font-size:15px; color:#888;
+    animation: fadeUp .6s ease .3s both;
+    margin-bottom:24px;
+}
+.status-pill {
+    display:inline-flex; align-items:center; gap:7px;
+    background:#f0fdf9; border:1.5px solid #bbf7e8;
+    border-radius:99px; padding:5px 14px;
+    font-size:11px; font-weight:700; color:#10b981;
+    text-transform:uppercase; letter-spacing:.06em;
+    margin-bottom:14px;
+    animation: fadeUp .5s ease .1s both;
+}
+.live-dot {
+    width:7px; height:7px; background:#10b981;
+    border-radius:50%; display:inline-block;
+    animation: livePulse 1.8s ease-in-out infinite;
+}
+.stat-box {
+    background:#f8f8ff; border:1.5px solid #e8e8f8;
+    border-radius:16px; padding:20px 12px; text-align:center;
+    transition:transform .2s, box-shadow .2s;
+    animation: fadeUp .6s ease .4s both;
+}
+.stat-box:hover { transform:translateY(-3px); box-shadow:0 8px 20px rgba(108,99,255,.10); }
+.stat-val { font-family:'Playfair Display',serif; font-size:24px; font-weight:600; color:#6c63ff; }
+.stat-lbl { font-size:11px; color:#aaa; text-transform:uppercase; letter-spacing:.07em; margin-top:4px; }
+.sug-wrap {
+    background:#f8f8ff; border:1.5px solid #e8e8f8;
+    border-radius:16px; padding:18px 22px; margin-top:10px;
+}
+.sug-title { font-size:11px; font-weight:700; color:#bbb; text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px; }
+.sug-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.sug-chip {
+    background:#fff; border:1.5px solid #dddcfe;
+    border-radius:99px; padding:7px 16px;
+    font-size:13px; font-weight:500; color:#6c63ff;
+    cursor:pointer; font-family:'Nunito',sans-serif;
+    transition:all .2s ease;
+}
+.sug-chip:hover {
+    background:#6c63ff; color:#fff; border-color:#6c63ff;
+    transform:translateY(-2px); box-shadow:0 4px 12px rgba(108,99,255,.25);
+}
+.result-label {
+    display:flex; align-items:center; gap:10px; margin-bottom:12px;
+}
+.result-line { width:24px; height:2px; background:#6c63ff; border-radius:2px; display:inline-block; }
+.result-tag {
+    font-size:11px; font-weight:700; letter-spacing:.12em;
+    text-transform:uppercase; color:#6c63ff;
+}
+.score-row {
+    display:flex; align-items:center; gap:12px;
+    margin:12px 0 8px; padding:14px 0 0;
+    border-top:1px solid #f0f0f8;
+}
+.score-label { font-size:11px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:.08em; white-space:nowrap; }
+.score-track { flex:1; height:6px; background:#ebebf8; border-radius:99px; overflow:hidden; }
+.score-fill { height:100%; border-radius:99px; background:linear-gradient(90deg,#6c63ff,#48cfad); }
+.score-pct { font-size:13px; font-weight:700; color:#6c63ff; min-width:36px; text-align:right; }
+.ctx-label-div {
+    background:#f0f0ff; border-left:4px solid #6c63ff;
+    border-radius:0 10px 10px 0; padding:8px 16px; margin-bottom:6px;
+}
+.ctx-label-text { font-size:10px; font-weight:700; color:#6c63ff; text-transform:uppercase; letter-spacing:.1em; }
 </style>
-""", unsafe_allow_html=True)
 
-# ── JS: fix any leftover overrides + animate chips ─────────────────────────────
-st.markdown("""
 <script>
 (function() {
-    function applyFixes() {
-        /* inputs */
-        document.querySelectorAll('textarea, input').forEach(function(el) {
-            el.style.setProperty('color',                   '#1a1a2e', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#1a1a2e', 'important');
-            el.style.setProperty('background-color',        '#f8f9ff', 'important');
-            el.style.setProperty('background',              '#f8f9ff', 'important');
-            el.style.setProperty('border',         '2px solid #e8e8f0','important');
-            el.style.setProperty('border-radius',           '14px',    'important');
-            el.style.setProperty('caret-color',             '#6c63ff', 'important');
-            el.style.setProperty('font-family',  'Nunito, sans-serif', 'important');
-            el.style.setProperty('font-size',               '15px',    'important');
-            el.style.setProperty('padding',          '14px 18px',      'important');
+    function fix() {
+        /* Force textarea text visible */
+        document.querySelectorAll('textarea,input').forEach(function(el) {
+            el.style.color = '#111';
+            el.style.webkitTextFillColor = '#111';
+            el.style.backgroundColor = '#f5f5ff';
         });
-        /* expander */
-        document.querySelectorAll('details, details summary').forEach(function(el) {
-            el.style.setProperty('background-color', '#f8f9ff', 'important');
-            el.style.setProperty('background',       '#f8f9ff', 'important');
-            el.style.setProperty('color',            '#6c63ff', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#6c63ff', 'important');
-        });
-        /* answer text */
-        document.querySelectorAll('.answer-text').forEach(function(el) {
-            el.style.setProperty('color',                   '#1a1a2e', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#1a1a2e', 'important');
-        });
-        /* chip click → fill textarea */
+        /* Wire suggestion chips */
         document.querySelectorAll('.sug-chip').forEach(function(chip) {
-            chip.onclick = function() {
+            if (chip._wired) return;
+            chip._wired = true;
+            chip.addEventListener('click', function() {
                 var ta = document.querySelector('textarea');
-                if (ta) {
-                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-                    nativeInputValueSetter.call(ta, chip.innerText);
-                    ta.dispatchEvent(new Event('input', { bubbles: true }));
-                    ta.focus();
-                }
-            };
+                if (!ta) return;
+                var setter = Object.getOwnPropertyDescriptor(
+                    window.HTMLTextAreaElement.prototype, 'value').set;
+                setter.call(ta, chip.innerText.trim());
+                ta.dispatchEvent(new Event('input', {bubbles:true}));
+                ta.focus();
+            });
         });
     }
-    applyFixes();
-    new MutationObserver(applyFixes).observe(document.body, { childList: true, subtree: true });
+    fix();
+    new MutationObserver(fix).observe(document.body, {childList:true, subtree:true});
 })();
 </script>
 """, unsafe_allow_html=True)
@@ -523,84 +240,89 @@ FAISS_PATH  = "faiss_index.bin"
 ANS_PATH    = "answers.pkl"
 EMBED_MODEL = "all-MiniLM-L6-v2"
 
-# ── Page HTML ──────────────────────────────────────────────────────────────────
+# ── Hero Header ────────────────────────────────────────────────────────────────
 st.markdown("""
-<div class="page-wrap">
-  <div class="hero">
-    <div class="status-pill"><span class="live-dot"></span> Live System</div>
+<div style="text-align:center; padding:32px 0 8px;">
+    <div class="status-pill"><span class="live-dot"></span> Live · PubMed QA</div>
     <div class="hero-icon">🩺</div>
     <div class="hero-title">MedQuery AI</div>
-    <div class="hero-sub">Extractive answers from <strong>500 PubMed</strong> research papers · Zero hallucination</div>
-  </div>
-  <div class="stats-row">
-    <div class="stat-box"><div class="stat-val">500</div><div class="stat-lbl">PubMed Records</div></div>
-    <div class="stat-box"><div class="stat-val">384</div><div class="stat-lbl">Embed Dims</div></div>
-    <div class="stat-box"><div class="stat-val">Top 5</div><div class="stat-lbl">Context Chunks</div></div>
-  </div>
-  <div class="search-label">Ask a Medical Question</div>
+    <div class="hero-sub">Semantic search over <strong>500 PubMed</strong> research abstracts · No hallucination</div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Load system ────────────────────────────────────────────────────────────────
+# ── Stats Row ──────────────────────────────────────────────────────────────────
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.markdown('<div class="stat-box"><div class="stat-val">500</div><div class="stat-lbl">PubMed Papers</div></div>', unsafe_allow_html=True)
+with c2:
+    st.markdown('<div class="stat-box"><div class="stat-val">384</div><div class="stat-lbl">Vector Dims</div></div>', unsafe_allow_html=True)
+with c3:
+    st.markdown('<div class="stat-box"><div class="stat-val">Top 5</div><div class="stat-lbl">Retrieved</div></div>', unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ── Load System ────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def load_system():
     embed_model = SentenceTransformer(EMBED_MODEL)
+
     if not os.path.exists(FAISS_PATH) or not os.path.exists(ANS_PATH):
-        prog = st.progress(0, text="Downloading PubMed QA dataset…")
+        bar = st.progress(0, text="⏳ Downloading PubMed QA dataset (first-time setup)…")
         ds = load_dataset("pubmed_qa", "pqa_labeled", split="train[:500]")
         answers = [item['long_answer'] for item in ds]
-        prog.progress(40, text="Creating embeddings…")
+        bar.progress(35, text="⚙️ Generating sentence embeddings…")
         embs = embed_model.encode(answers, show_progress_bar=False)
-        prog.progress(80, text="Building FAISS index…")
+        bar.progress(75, text="🔍 Building FAISS index…")
         index = faiss.IndexFlatL2(embs.shape[1])
-        index.add(np.array(embs))
+        index.add(np.array(embs, dtype="float32"))
         faiss.write_index(index, FAISS_PATH)
         with open(ANS_PATH, "wb") as f:
             pickle.dump(answers, f)
-        prog.progress(100, text="Ready!")
+        bar.progress(100, text="✅ Ready!")
     else:
         index = faiss.read_index(FAISS_PATH)
         with open(ANS_PATH, "rb") as f:
             answers = pickle.load(f)
+
     return embed_model, index, answers
 
-with st.spinner("Loading system…"):
+with st.spinner("🔄 Loading AI system…"):
     try:
-        embed_model, idx, answers = load_system()
-        ready = True
+        embed_model, faiss_index, answers = load_system()
+        system_ready = True
     except Exception as e:
-        st.error(f"Failed to load: {e}")
-        ready = False
+        st.error(f"❌ System failed to load: {e}")
+        system_ready = False
 
-if not ready:
+if not system_ready:
     st.stop()
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
-def retrieve(query, k=5):
-    """Return top-k most semantically similar PubMed passages."""
+# ── Retrieval ──────────────────────────────────────────────────────────────────
+def search_pubmed(query: str, k: int = 5):
     vec = embed_model.encode([query])
-    distances, idxs = idx.search(np.array(vec, dtype="float32"), k)
-    results = [answers[i] for i in idxs[0]]
-    # Convert L2 distance → rough similarity score (lower distance = better)
-    scores  = [max(0, 1 - (d / 200)) for d in distances[0]]
-    return results, scores
+    distances, indices = faiss_index.search(np.array(vec, dtype="float32"), k)
+    passages = [answers[i] for i in indices[0]]
+    # Normalise L2 distance to 0–100 relevance score
+    scores = [max(0, round((1 - d / 150) * 100)) for d in distances[0]]
+    return passages, scores
 
-# ── Input UI ───────────────────────────────────────────────────────────────────
+# ── Input ──────────────────────────────────────────────────────────────────────
+st.markdown("**Ask a medical question:**")
 query = st.text_area(
-    "question",
-    placeholder="e.g. What is diabetes? What causes hypertension?",
-    height=120,
+    label="query",
+    placeholder="e.g. What is diabetes?   What causes hypertension?   How does chemotherapy work?",
+    height=110,
     label_visibility="collapsed"
 )
 
-col1, col2 = st.columns([3, 2])
-with col1:
-    search = st.button("🔍  Search PubMed", use_container_width=True)
+btn_col, _ = st.columns([2, 3])
+with btn_col:
+    clicked = st.button("🔍  Search PubMed", use_container_width=True)
 
-# ── Suggestions ────────────────────────────────────────────────────────────────
+# ── Suggestion chips ───────────────────────────────────────────────────────────
 st.markdown("""
 <div class="sug-wrap">
-  <div class="sug-title">Try these</div>
+  <div class="sug-title">Try these questions</div>
   <div class="sug-chips">
     <button class="sug-chip">What is diabetes?</button>
     <button class="sug-chip">What causes hypertension?</button>
@@ -611,69 +333,47 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+st.divider()
 
-# ── Answer ─────────────────────────────────────────────────────────────────────
-if search:
+# ── Results ────────────────────────────────────────────────────────────────────
+if clicked:
     if not query.strip():
-        st.warning("⚠️ Please type a question above.")
+        st.warning("⚠️ Please type a medical question above.")
     else:
-        with st.spinner("Searching PubMed knowledge base…"):
-            chunks, scores = retrieve(query)
+        with st.spinner("🔍 Searching PubMed knowledge base…"):
+            passages, scores = search_pubmed(query)
 
-        # Best match = top retrieved passage (most semantically similar)
-        best_answer = chunks[0]
-        best_score  = round(scores[0] * 100)
+        best      = passages[0]
+        best_score = scores[0]
 
-        # ── Answer card label ──
-        st.markdown("""
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-          <span style="width:24px;height:2px;background:#6c63ff;border-radius:2px;display:inline-block;"></span>
-          <span style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#6c63ff;">Most Relevant PubMed Result</span>
-        </div>
-        """, unsafe_allow_html=True)
+        # ── Best answer (use st.success so text is ALWAYS visible) ──
+        st.markdown('<div class="result-label"><span class="result-line"></span><span class="result-tag">Most Relevant PubMed Result</span></div>', unsafe_allow_html=True)
+        st.success(best)
 
-        # ── Answer text — use st.info() so it's ALWAYS visible ──
-        st.info(best_answer)
-
-        # ── Confidence bar ──
+        # ── Relevance score bar ──
         st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:12px;margin:12px 0 24px 0;">
-          <span style="font-size:11px;font-weight:700;text-transform:uppercase;
-                       letter-spacing:0.08em;color:#aaa;white-space:nowrap;">
-            Relevance Score
-          </span>
-          <div style="flex:1;height:6px;background:#e8e8f0;border-radius:99px;overflow:hidden;">
-            <div style="width:{best_score}%;height:100%;border-radius:99px;
-                        background:linear-gradient(90deg,#6c63ff,#48cfad);">
-            </div>
+        <div class="score-row">
+          <span class="score-label">Relevance</span>
+          <div class="score-track">
+            <div class="score-fill" style="width:{best_score}%"></div>
           </div>
-          <span style="font-size:13px;font-weight:700;color:#6c63ff;min-width:40px;text-align:right;">
-            {best_score}%
-          </span>
+          <span class="score-pct">{best_score}%</span>
         </div>
         """, unsafe_allow_html=True)
 
-        # ── Other matches ──
-        with st.expander(f"📄 View All 5 PubMed Matches"):
-            for i, (chunk, score) in enumerate(zip(chunks, scores), 1):
-                pct = round(score * 100)
-                st.markdown(f"""
-                <div style="background:#f8f9ff;border-left:4px solid #6c63ff;
-                            border-radius:0 12px 12px 0;padding:16px 20px;
-                            margin-bottom:12px;">
-                  <div style="font-size:10px;font-weight:700;text-transform:uppercase;
-                               letter-spacing:0.1em;color:#6c63ff;margin-bottom:8px;">
-                    Match {i} &nbsp;·&nbsp; Relevance {pct}%
-                  </div>
-                </div>""", unsafe_allow_html=True)
-                # Use st.write for chunk text — always visible, never affected by CSS
-                st.write(chunk)
-                st.divider()
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── All 5 matches in expander ──
+        with st.expander("📄 View all 5 PubMed matches"):
+            for i, (passage, score) in enumerate(zip(passages, scores), 1):
+                st.markdown(f'<div class="ctx-label-div"><span class="ctx-label-text">Match {i} &nbsp;·&nbsp; Relevance {score}%</span></div>', unsafe_allow_html=True)
+                st.write(passage)
+                if i < len(passages):
+                    st.divider()
 
 st.markdown("""
-<div style="text-align:center;color:#bbb;font-size:12px;margin-top:40px;">
-  ⚠️ For educational purposes only — not a substitute for professional medical advice.
-  <br>Built with FAISS · Sentence Transformers · Streamlit
+<div style="text-align:center; color:#ccc; font-size:12px; margin-top:40px; font-family:'Nunito',sans-serif;">
+  ⚠️ For educational purposes only — not a substitute for professional medical advice.<br>
+  Built with FAISS · Sentence Transformers · Streamlit &nbsp;·&nbsp; by Sonika Deshwal
 </div>
 """, unsafe_allow_html=True)
